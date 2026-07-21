@@ -153,6 +153,50 @@ fn guidance_files_in_hidden_dirs_are_walked() {
 }
 
 #[test]
+fn anchor_resolves_flags_missing_same_file_and_cross_file_fragments() {
+    let dir = tempfile::tempdir().unwrap();
+    // `guide.md` has one heading; the links reach for a missing cross-file anchor
+    // and a missing same-file anchor. Both are MD051 findings under one rule.
+    write(dir.path(), "guide.md", "# Guide\n\n## Real Heading\n");
+    write(
+        dir.path(),
+        "doc.md",
+        "See [x](guide.md#missing) and [y](#nope).\n\n# Top\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn markdown_style_flags_trailing_spaces_and_missing_final_newline() {
+    let dir = tempfile::tempdir().unwrap();
+    // Trailing whitespace (MD009) and no closing newline (MD047) — the fixable set.
+    write(
+        dir.path(),
+        "s.md",
+        "# Title\n\nA line with trailing   \nlast",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
+    let dir = tempfile::tempdir().unwrap();
+    // Two blank-line runs (MD012) plus a tab (MD010) plus a missing final newline.
+    write(
+        dir.path(),
+        "s.md",
+        "# Title\n\nPara one.\n\n\n\nPara two with a\ttab.",
+    );
+    // `--fix` rewrites the file, then reports the (now empty) residue.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["check", "--fix"]));
+    // The file on disk is now canonical markdown.
+    let fixed = fs::read_to_string(dir.path().join("s.md")).unwrap();
+    insta::assert_snapshot!("fix_rewrites_file_contents", fixed);
+    // A second plain check finds nothing — the fix was idempotent and complete.
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
 fn code_doc_ref_flags_a_missing_doc_path_in_source() {
     let dir = tempfile::tempdir().unwrap();
     write(

@@ -1,0 +1,23 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[anchor-resolves]: Link anchor '#nope' does not exist in document headings
+ --> doc.md:1:31
+  |
+1 | See [x](guide.md#missing) and [y](#nope).
+  |                               ^^^^^^^^^^
+error[anchor-resolves]: Link fragment 'missing' not found in 'guide.md'
+ --> doc.md:1:5
+  |
+1 | See [x](guide.md#missing) and [y](#nope).
+  |     ^^^^^^^^^^^^^^^^
+ailint: 2 findings
+
+----- stderr -----

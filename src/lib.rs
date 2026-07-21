@@ -15,9 +15,11 @@ pub mod cli;
 pub mod config;
 pub mod diagnostic;
 mod engine;
+mod fix;
 mod output;
 pub mod references;
 mod rules;
+mod rumdl_adapter;
 mod walk;
 
 pub use cli::{Cli, Command, OutputFormat};
@@ -43,7 +45,7 @@ pub fn run(cli: &Cli) -> ExitCode {
 
 fn dispatch(cli: &Cli, out: &mut impl Write) -> Result<ExitCode> {
     match &cli.command {
-        Command::Check { paths, fix: _ } => run_check(cli, paths, out),
+        Command::Check { paths, fix } => run_check(cli, paths, *fix, out),
         Command::Rules => {
             list_rules(out)?;
             Ok(ExitCode::SUCCESS)
@@ -53,7 +55,7 @@ fn dispatch(cli: &Cli, out: &mut impl Write) -> Result<ExitCode> {
     }
 }
 
-fn run_check(cli: &Cli, paths: &[PathBuf], out: &mut impl Write) -> Result<ExitCode> {
+fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> Result<ExitCode> {
     let cwd = env::current_dir()?;
     let loaded = Config::discover(cli.config.as_deref(), &cwd)?;
     let scan_paths: Vec<PathBuf> = if paths.is_empty() {
@@ -61,10 +63,15 @@ fn run_check(cli: &Cli, paths: &[PathBuf], out: &mut impl Write) -> Result<ExitC
     } else {
         paths.to_vec()
     };
-    let files = walk::walk(&scan_paths, &loaded.config.exclude.paths, &cwd)?;
+    let mut files = walk::walk(&scan_paths, &loaded.config.exclude.paths, &cwd)?;
     if files.is_empty() {
         // Fail fast: zero files under the requested paths is a misconfiguration, not a clean pass.
         bail!("no files found under {scan_paths:?}");
+    }
+    // `--fix` rewrites the auto-fixable markdown-style findings on disk first, then
+    // the check below reports whatever remains — so a second `--fix` run is clean.
+    if fix && loaded.config.markdown_style.enabled {
+        fix::apply(&mut files, loaded.config.markdown_style.reflow)?;
     }
     let diagnostics = engine::check(&files, &loaded.config, &cwd);
     output::render(cli.output_format, &diagnostics, files.len(), out)?;

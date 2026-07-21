@@ -43,16 +43,20 @@ pub(crate) fn walk(paths: &[PathBuf], exclude: &[String], cwd: &Path) -> Result<
         if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
-        let abs_path = entry.path();
-        let rel_path = display_path(abs_path, cwd);
+        let walked = entry.path();
+        let rel_path = display_path(walked, cwd);
         if exclude_set.is_match(&rel_path) {
             continue;
         }
+        // Make the path genuinely absolute (a `.` scan root yields relative paths).
+        // Cross-file rules key a workspace index by this path and must agree with
+        // how they resolve link targets — a relative key silently misses.
+        let abs_path = cwd.join(walked);
         let bytes =
-            std::fs::read(abs_path).with_context(|| format!("reading {}", abs_path.display()))?;
+            std::fs::read(&abs_path).with_context(|| format!("reading {}", abs_path.display()))?;
         files.push(SourceFile {
             rel_path,
-            abs_path: abs_path.to_path_buf(),
+            abs_path,
             content: String::from_utf8_lossy(&bytes).into_owned(),
         });
     }

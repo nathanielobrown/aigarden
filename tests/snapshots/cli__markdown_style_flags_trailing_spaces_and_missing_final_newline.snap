@@ -1,0 +1,23 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[markdown-style]: [MD009] 3 trailing spaces found
+ --> s.md:3:21
+  |
+3 | A line with trailing   
+  |                     ^^^
+error[markdown-style]: [MD047] File should end with a single newline character
+ --> s.md:4:5
+  |
+4 | last
+  |     ^
+ailint: 2 findings
+
+----- stderr -----

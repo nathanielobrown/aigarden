@@ -15,6 +15,7 @@ use crate::walk::SourceFile;
 mod file_length;
 mod reference_rules;
 mod resolve;
+mod rumdl_rules;
 
 /// Read-only view of the repository handed to every rule.
 pub(crate) struct RuleContext<'a> {
@@ -48,5 +49,7 @@ pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
         Box::new(reference_rules::BarePath),
         Box::new(reference_rules::ImportTarget),
         Box::new(reference_rules::CodeDocRef),
+        Box::new(rumdl_rules::AnchorResolves),
+        Box::new(rumdl_rules::MarkdownStyle),
     ]
 }

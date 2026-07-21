@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: fixed
+---
+# Title
+
+Para one.
+
+Para two with a    tab.
