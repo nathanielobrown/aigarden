@@ -1,0 +1,10 @@
+---
+source: tests/cli.rs
+expression: "fs::read_to_string(dir.path().join(\"docs/index.md\")).unwrap()"
+---
+# Index
+
+<!-- ailint:cog index docs/0*.md -->
+- [First decision](0001-first.md) — Why we chose the first thing
+- [Second](0002-second.md) — the second decision, briefly
+<!-- ailint:end -->

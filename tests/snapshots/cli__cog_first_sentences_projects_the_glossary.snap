@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - cog
+    - "--write"
+---
+success: true
+exit_code: 0
+----- stdout -----
+updated SHORT.md
+
+----- stderr -----

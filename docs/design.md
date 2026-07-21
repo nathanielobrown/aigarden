@@ -101,17 +101,25 @@ A cog is a generated block whose body is recomputed on every run. Markers are HT
 
 The twist over a plain cog clone: a marker names **either** a built-in generator **or** an arbitrary shell command embedded in the marker itself (`<!-- ailint:cog sh "…" -->`). Built-ins are a deliberately non-Turing-complete template language; the shell escape hatch covers everything else without teaching the tool a scripting language.
 
-Built-in trio for v1:
+**Marker grammar.** The open marker is an HTML comment `<!-- ailint:cog <generator> <args> -->`; the close marker is `<!-- ailint:end -->`. `<generator>` is one built-in name or `sh`. `<args>` is whitespace-separated tokens where a `"…"`-quoted run is one token (so a path with spaces, or a whole shell command, stays intact). The built-ins take a single positional path/glob; `sh` takes exactly one quoted command. Parsing is **fence-aware**: a marker inside a ```` ``` ```` or `~~~` fence is a documented example, not a live block — a doc can show the syntax without expanding it. A nested open marker or an unterminated block fails loudly; it never passes as fresh. Generated output is normalized so a non-empty body ends in exactly one newline (the end marker always lands on its own line).
 
-- `file-tree` — render a directory tree from a curated spec
-- `first-sentences` — first sentence of each `- **Term** — gloss` bullet (the short-glossary pattern)
-- `index` — a glob plus a per-entry gloss (ADR index, tracker index, …)
+Built-in trio for v1 (each is a pure, deterministic function of the tree on disk):
 
-`ailint cog --check` gates freshness (prints a diff of any stale block, exits non-zero, never writes); `ailint cog --write` regenerates in place. The two are separate code paths on purpose — a check that regenerated-then-compared against itself would always pass. There is no default mode: the caller chooses.
+- `file-tree <path>` — an indented tree of `<path>`, resolved from the **cog file's directory**. Honors `.gitignore`, skips hidden files and `.git`; directories get a trailing `/`; entries sorted by path (2-space indent per depth). Errors if the path does not exist
+- `first-sentences <path>` — the short-glossary projection of a markdown file (resolved from the **cog file's directory**) of `## Section` headers and `- **Term** — gloss` bullets: re-emits each section with every gloss cut to its first sentence. Bullets require the literal ` — ` (U+2014 em dash) separator. First-sentence cutting ignores periods inside backticks/parens/brackets and the abbreviations `e.g.`/`i.e.`
+- `index <glob>` — one `- [title](link) — gloss` bullet per file matching `<glob>` **relative to the repo root**, sorted by path. The link is relative to the cog file's directory; `title` is the file's first `# heading` (else its filename stem); `gloss` is a frontmatter `description:`, else the first sentence of the first prose paragraph
+
+`sh "<command>"` runs the command via `sh -c` with **cwd = the file's repo root** (the nearest `.git` ancestor, else the scan root) and splices its stdout. A nonzero exit is a tool error with stderr surfaced — never a silent empty region.
+
+`ailint cog --check` gates freshness (a stale block is a `cog-fresh` diagnostic, exit 1; never writes); `ailint cog --write` regenerates in place, printing which files changed. The two are separate code paths on purpose — a check that regenerated-then-compared against itself would always pass. One flag is **required**: there is no default mode.
+
+A failing generator is treated differently by the two entry points. Standalone `ailint cog --check` (and `--write`) treats it as a **tool error** (exit 2, loud on stderr) — a write must be correct or not happen. The same blocks reached through the `cog-fresh` rule during `ailint check` treat a failure as an ordinary **finding** (exit 1), so one bad generator can never abort the whole lint run.
 
 ## mv
 
-`ailint mv <src> <dst>` stages a `git mv`, then rewrites **every reference form the link rules audit** — markdown links, backticked bare paths, and `@`-imports across markdown, plus root-relative doc-path tokens across non-markdown source. The moved file's own outbound relative links are re-anchored from its new directory. It uses the same reference-extraction core and the same exclusions as `check`, then re-runs the checks to confirm it left the repo clean.
+`ailint mv <src> <dst>` moves a **file** (`git mv` when tracked, else a plain rename that never loses data), then rewrites **every reference form the link rules audit** — markdown links, backticked bare paths, and `@`-imports across markdown, plus root-relative doc-path tokens across non-markdown source. Any `#fragment` on a rewritten link is preserved. The moved file's own outbound relative links are re-anchored from its new directory. It uses the same reference-extraction core and the same exclusions as `check`, then re-runs the reference rules to confirm it left the repo clean (exit 1 with the residue if not — the verify-after step).
+
+**File-only for v1** — a directory source is refused (`mv` of a tree, with recursive re-anchoring, is deferred; not cheap enough to do half-right). It also refuses when `<src>` does not exist or `<dst>` already exists, rather than clobbering. `<dst>` ending in `/`, or naming an existing directory, moves into it under the source's filename.
 
 ## Output formats
 

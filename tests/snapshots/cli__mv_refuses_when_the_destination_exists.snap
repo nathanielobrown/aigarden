@@ -1,0 +1,15 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - mv
+    - a.md
+    - b.md
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: destination `b.md` already exists

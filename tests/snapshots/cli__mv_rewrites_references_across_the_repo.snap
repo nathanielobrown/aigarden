@@ -1,0 +1,16 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - mv
+    - guide.md
+    - docs/guide.md
+---
+success: true
+exit_code: 0
+----- stdout -----
+moved guide.md → docs/guide.md (rewrote 1 reference(s) across 1 file(s))
+✓ ailint: checked 2 files, no findings
+
+----- stderr -----

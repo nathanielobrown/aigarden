@@ -1,0 +1,5 @@
+---
+source: tests/cli.rs
+expression: "fs::read_to_string(dir.path().join(\"docs/readme.md\")).unwrap()"
+---
+See [the guide](guide.md).

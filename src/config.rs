@@ -45,6 +45,9 @@ pub struct Config {
     /// `markdown-style`: rumdl style rules surfaced under ailint config.
     #[serde(default)]
     pub markdown_style: MarkdownStyleConfig,
+    /// `cog-fresh`: every generated cog block matches its generator's output.
+    #[serde(default)]
+    pub cog_fresh: RuleToggle,
 }
 
 /// A plain per-rule on/off switch — the shared shape for rules with no other

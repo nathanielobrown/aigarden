@@ -12,9 +12,10 @@ use crate::config::Config;
 use crate::diagnostic::Diagnostic;
 use crate::walk::SourceFile;
 
+mod cog_fresh;
 mod file_length;
 mod reference_rules;
-mod resolve;
+pub(crate) mod resolve;
 mod rumdl_rules;
 
 /// Read-only view of the repository handed to every rule.
@@ -51,5 +52,6 @@ pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
         Box::new(reference_rules::CodeDocRef),
         Box::new(rumdl_rules::AnchorResolves),
         Box::new(rumdl_rules::MarkdownStyle),
+        Box::new(cog_fresh::CogFresh),
     ]
 }

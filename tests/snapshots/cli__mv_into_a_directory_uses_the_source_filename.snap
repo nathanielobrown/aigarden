@@ -1,0 +1,16 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - mv
+    - notes.md
+    - archive/
+---
+success: true
+exit_code: 0
+----- stdout -----
+moved notes.md → archive/notes.md (rewrote 0 reference(s) across 0 file(s))
+✓ ailint: checked 1 file, no findings
+
+----- stderr -----

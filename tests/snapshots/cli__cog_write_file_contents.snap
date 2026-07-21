@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: written
+---
+# Doc
+
+<!-- ailint:cog sh "echo hello" -->
+hello
+<!-- ailint:end -->

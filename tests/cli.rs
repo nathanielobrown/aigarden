@@ -206,3 +206,177 @@ fn code_doc_ref_flags_a_missing_doc_path_in_source() {
     );
     assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
 }
+
+// ── cog ──────────────────────────────────────────────────────────────────────
+
+#[test]
+fn cog_requires_a_mode() {
+    // Neither --check nor --write: clap rejects it (no default mode).
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "doc.md", "# Doc\n");
+    assert_cmd_snapshot!(ailint(dir.path()).arg("cog"));
+}
+
+#[test]
+fn cog_check_flags_a_stale_block() {
+    let dir = tempfile::tempdir().unwrap();
+    // The body says `stale` but the generator produces `hello`.
+    write(
+        dir.path(),
+        "doc.md",
+        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+}
+
+#[test]
+fn cog_write_regenerates_then_check_is_clean() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "doc.md",
+        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+    );
+    // --write splices the fresh body and reports the changed file.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    let written = fs::read_to_string(dir.path().join("doc.md")).unwrap();
+    insta::assert_snapshot!("cog_write_file_contents", written);
+    // A --check right after --write is always clean (determinism).
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+}
+
+#[test]
+fn cog_failing_generator_is_a_tool_error() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "doc.md",
+        "<!-- ailint:cog sh \"exit 3\" -->\n<!-- ailint:end -->\n",
+    );
+    // A nonzero shell exit is exit 2 (tool error), not a finding.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+}
+
+#[test]
+fn cog_file_tree_renders_a_directory_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "src/a.rs", "fn a() {}\n");
+    write(dir.path(), "src/nested/b.rs", "fn b() {}\n");
+    write(dir.path(), "src/c.rs", "fn c() {}\n");
+    write(
+        dir.path(),
+        "doc.md",
+        "<!-- ailint:cog file-tree src -->\n<!-- ailint:end -->\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    insta::assert_snapshot!(
+        "cog_file_tree_contents",
+        fs::read_to_string(dir.path().join("doc.md")).unwrap()
+    );
+}
+
+#[test]
+fn cog_first_sentences_projects_the_glossary() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "CONTEXT.md",
+        "# Long form\n\n## Terms\n\n- **Alpha** \u{2014} the first thing. It has more prose.\n- **Beta** \u{2014} the second thing, with a `dotted.name` inside.\n",
+    );
+    write(
+        dir.path(),
+        "SHORT.md",
+        "<!-- ailint:cog first-sentences CONTEXT.md -->\n<!-- ailint:end -->\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    insta::assert_snapshot!(
+        "cog_first_sentences_contents",
+        fs::read_to_string(dir.path().join("SHORT.md")).unwrap()
+    );
+}
+
+#[test]
+fn cog_index_lists_matching_files_with_glosses() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "docs/0001-first.md",
+        "# First decision\n\nWhy we chose the first thing. More detail.\n",
+    );
+    write(
+        dir.path(),
+        "docs/0002-second.md",
+        "---\ndescription: the second decision, briefly\n---\n# Second\n\nBody.\n",
+    );
+    write(
+        dir.path(),
+        "docs/index.md",
+        "# Index\n\n<!-- ailint:cog index docs/0*.md -->\n<!-- ailint:end -->\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    insta::assert_snapshot!(
+        "cog_index_contents",
+        fs::read_to_string(dir.path().join("docs/index.md")).unwrap()
+    );
+}
+
+#[test]
+fn cog_fresh_surfaces_in_a_check_run() {
+    let dir = tempfile::tempdir().unwrap();
+    // A stale cog block is reported by `ailint check` via the registry.
+    write(
+        dir.path(),
+        "doc.md",
+        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+// ── mv ───────────────────────────────────────────────────────────────────────
+
+#[test]
+fn mv_rewrites_references_across_the_repo() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "guide.md", "# Guide\n");
+    write(
+        dir.path(),
+        "docs/readme.md",
+        "See [the guide](../guide.md).\n",
+    );
+    // Move the guide into docs/; the referrer's link must repoint.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "guide.md", "docs/guide.md"]));
+    insta::assert_snapshot!(
+        "mv_rewrites_referrer",
+        fs::read_to_string(dir.path().join("docs/readme.md")).unwrap()
+    );
+}
+
+#[test]
+fn mv_reanchors_the_moved_files_own_links() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "sibling.md", "# Sibling\n");
+    write(dir.path(), "doc.md", "Link to [sib](sibling.md).\n");
+    // Moving doc.md into sub/ must re-anchor its own outbound link.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "doc.md", "sub/doc.md"]));
+    insta::assert_snapshot!(
+        "mv_reanchored_moved_file",
+        fs::read_to_string(dir.path().join("sub/doc.md")).unwrap()
+    );
+}
+
+#[test]
+fn mv_into_a_directory_uses_the_source_filename() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "notes.md", "# Notes\n");
+    // A trailing-slash destination is a directory to move into.
+    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "notes.md", "archive/"]));
+    assert!(dir.path().join("archive/notes.md").exists());
+}
+
+#[test]
+fn mv_refuses_when_the_destination_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a.md", "# A\n");
+    write(dir.path(), "b.md", "# B\n");
+    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "a.md", "b.md"]));
+}

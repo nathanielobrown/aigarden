@@ -85,9 +85,35 @@ pub(crate) fn case_exact(path: &Path) -> bool {
     true
 }
 
+/// A forward-slashed relative path from `from_dir` to `to`, both absolute. Used
+/// by `mv` (re-anchoring a moved file's links) and the `index` cog generator
+/// (linking each indexed file from the cog file's directory).
+#[must_use]
+pub(crate) fn relative_path(from_dir: &Path, to: &Path) -> String {
+    let from: Vec<Component<'_>> = from_dir.components().collect();
+    let to_components: Vec<Component<'_>> = to.components().collect();
+    let mut shared = 0;
+    while shared < from.len()
+        && shared < to_components.len()
+        && from[shared] == to_components[shared]
+    {
+        shared += 1;
+    }
+    let mut parts: Vec<String> =
+        std::iter::repeat_n("..".to_string(), from.len() - shared).collect();
+    for component in &to_components[shared..] {
+        parts.push(component.as_os_str().to_string_lossy().into_owned());
+    }
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
+}
+
 /// Fold `.`/`..` segments lexically, keeping the path string-resolvable without
 /// touching the filesystem.
-fn normalize_lexical(path: &Path) -> PathBuf {
+pub(crate) fn normalize_lexical(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {

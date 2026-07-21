@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - cog
+    - "--check"
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: doc.md: cog generator `sh` failed: cog shell command `exit 3` exited with exit status: 3

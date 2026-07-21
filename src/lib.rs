@@ -12,10 +12,12 @@ use std::process::ExitCode;
 use anyhow::{Result, bail};
 
 pub mod cli;
+mod cog;
 pub mod config;
 pub mod diagnostic;
 mod engine;
 mod fix;
+mod mv;
 mod output;
 pub mod references;
 mod rules;
@@ -50,8 +52,26 @@ fn dispatch(cli: &Cli, out: &mut impl Write) -> Result<ExitCode> {
             list_rules(out)?;
             Ok(ExitCode::SUCCESS)
         }
-        Command::Cog { .. } => bail!("`ailint cog` is not implemented yet"),
-        Command::Mv { .. } => bail!("`ailint mv` is not implemented yet"),
+        Command::Cog { write, check } => run_cog(cli, *write, *check, out),
+        Command::Mv { src, dst } => mv::run(cli, src, dst, out),
+    }
+}
+
+/// Check or rewrite the repository's cog blocks. `--check` reports stale blocks as
+/// diagnostics (exit 1) and surfaces a failing generator as a tool error (exit 2);
+/// `--write` splices updates in place and reports what changed. Exactly one of the
+/// two is required — there is no default mode.
+fn run_cog(cli: &Cli, write: bool, check: bool, out: &mut impl Write) -> Result<ExitCode> {
+    let cwd = env::current_dir()?;
+    let loaded = Config::discover(cli.config.as_deref(), &cwd)?;
+    let files = walk::walk(&[PathBuf::from(".")], &loaded.config.exclude.paths, &cwd)?;
+    // `check`/`write` are a required, mutually-exclusive pair (enforced by clap).
+    if write {
+        cog::write_repo(&files, &cwd, out)
+    } else {
+        debug_assert!(check);
+        let _ = check;
+        cog::check_repo(cli.output_format, &files, &cwd, out)
     }
 }
 

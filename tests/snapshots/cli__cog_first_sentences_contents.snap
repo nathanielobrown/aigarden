@@ -1,0 +1,10 @@
+---
+source: tests/cli.rs
+expression: "fs::read_to_string(dir.path().join(\"SHORT.md\")).unwrap()"
+---
+<!-- ailint:cog first-sentences CONTEXT.md -->
+## Terms
+
+- **Alpha** — the first thing
+- **Beta** — the second thing, with a `dotted.name` inside
+<!-- ailint:end -->

@@ -1,0 +1,16 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - mv
+    - doc.md
+    - sub/doc.md
+---
+success: true
+exit_code: 0
+----- stdout -----
+moved doc.md → sub/doc.md (rewrote 1 reference(s) across 1 file(s))
+✓ ailint: checked 2 files, no findings
+
+----- stderr -----

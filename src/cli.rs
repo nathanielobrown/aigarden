@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 /// Lint and maintain repositories for AI-agent + human collaboration.
 #[derive(Parser, Debug)]
@@ -32,20 +32,31 @@ pub enum Command {
         #[arg(long)]
         fix: bool,
     },
-    /// Check or rewrite generated cog blocks.
+    /// Check or rewrite generated cog blocks (`<!-- ailint:cog … -->` regions).
+    ///
+    /// Pick exactly one mode — there is no default:
+    ///   ailint cog --check    # fail if any block is stale (CI / the gate)
+    ///   ailint cog --write    # regenerate every stale block in place
+    #[command(group(ArgGroup::new("mode").required(true).args(["write", "check"])))]
     Cog {
-        /// Rewrite cog blocks in place.
-        #[arg(long, conflicts_with = "check")]
+        /// Regenerate every cog block in place, reporting which files changed.
+        #[arg(long)]
         write: bool,
-        /// Fail if any cog block is stale, without rewriting.
+        /// Report stale cog blocks as diagnostics and exit non-zero, without writing.
         #[arg(long)]
         check: bool,
     },
     /// Move a file and rewrite every reference to it across the repository.
+    ///
+    /// Uses `git mv` for a tracked file (else a plain rename), rewrites markdown
+    /// links, `@`-imports, backticked bare paths, and code doc-path citations, then
+    /// re-runs the link rules to confirm the repo is still clean. Files only.
+    ///   ailint mv docs/old.md docs/new.md      # rename in place
+    ///   ailint mv notes.md archive/            # move into a directory
     Mv {
-        /// Path to move.
+        /// File to move.
         src: String,
-        /// Destination path.
+        /// Destination path, or a directory (trailing `/`) to move into.
         dst: String,
     },
     /// List the registered rules and their one-line descriptions.
