@@ -168,6 +168,8 @@ A failing generator is treated differently by the two entry points. Standalone `
 
 `ailint mv <src> <dst>` moves a **file** (`git mv` when tracked, else a plain rename that never loses data), then rewrites **every reference form the link rules audit** — markdown links, backticked bare paths, and `@`-imports across markdown, plus root-relative doc-path tokens across non-markdown source. Any `#fragment` on a rewritten link is preserved. The moved file's own outbound relative links are re-anchored from its new directory. It uses the same reference-extraction core and the same exclusions as `check`, then re-runs the reference rules to confirm it left the repo clean (exit 1 with the residue if not — the verify-after step).
 
+`mv`'s per-kind resolution must mirror each rule's, or the rewrite and the verify-after disagree. A bare path is the one kind resolved **both** file-relative and repo-root-relative (matching `bare-path`), so a root-relative backtick like `` `docs/x.md` `` in a subdir doc rewrites and re-verifies clean; every other kind keeps its single resolution (code doc-refs root-relative, links/imports file-relative). The extraction grammar is shared by construction; this resolution parity is a per-kind obligation the two sides must uphold together.
+
 **File-only for v1** — a directory source is refused (`mv` of a tree, with recursive re-anchoring, is deferred; not cheap enough to do half-right). It also refuses when `<src>` does not exist or `<dst>` already exists, rather than clobbering. `<dst>` ending in `/`, or naming an existing directory, moves into it under the source's filename.
 
 ## Output formats

@@ -27,7 +27,8 @@ use crate::cli::{Cli, OutputFormat};
 use crate::config::Config;
 use crate::references::{RefKind, extract};
 use crate::rules::resolve::{
-    is_checkable_local, normalize_lexical, relative_path, resolve_from_file, resolve_from_root,
+    is_checkable_local, normalize_lexical, relative_path, resolve_existing, resolve_from_file,
+    resolve_from_root,
 };
 use crate::walk::{self, SourceFile};
 use crate::{engine, output};
@@ -176,15 +177,34 @@ fn rewrite_references(
                 .fragment
                 .as_deref()
                 .map_or_else(String::new, |f| format!("#{f}"));
-            let is_root_relative = reference.kind == RefKind::CodeDocRef;
-            // Resolve the reference to an absolute target. For the moved file, its
-            // relative links were written from src's old directory.
-            let resolved = if is_root_relative {
-                resolve_from_root(root, path)
-            } else if is_moved {
-                resolve_from_file(src_abs, path)
-            } else {
-                resolve_from_file(&file_abs, path)
+            // Resolve the reference to an absolute target, and record which style it
+            // was written in so the rewrite can preserve it. Most kinds are fixed:
+            // code doc-refs are always root-relative, links/images/imports always
+            // file-relative (from src's old dir for the moved file). A bare path is
+            // the exception — the `bare-path` check accepts either resolution, so the
+            // rewrite must mirror it, or a root-relative backtick in a subdir doc is
+            // left stale and the verify-after fails (the check/mv drift this fixes).
+            let base_for_file: &Path = if is_moved { src_abs } else { &file_abs };
+            let (resolved, is_root_relative) = match reference.kind {
+                RefKind::CodeDocRef => (resolve_from_root(root, path), true),
+                RefKind::BarePath => {
+                    let from_file = resolve_from_file(base_for_file, path);
+                    let from_root = resolve_from_root(root, path);
+                    // An inbound match picks the matching style; otherwise prefer the
+                    // style that resolves on disk (file-relative wins ties), so an
+                    // outbound bare path in the moved file re-anchors correctly and a
+                    // still-valid root-relative one is left untouched.
+                    if from_file == *src_abs {
+                        (from_file, false)
+                    } else if from_root == *src_abs {
+                        (from_root, true)
+                    } else if resolve_existing(&from_file).is_some() {
+                        (from_file, false)
+                    } else {
+                        (from_root, true)
+                    }
+                }
+                _ => (resolve_from_file(base_for_file, path), false),
             };
             let new_target = if resolved == *src_abs {
                 // Inbound: this reference pointed at the moved file — repoint it.

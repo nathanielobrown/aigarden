@@ -548,6 +548,32 @@ fn mv_refuses_when_the_destination_exists() {
     assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "a.md", "b.md"]));
 }
 
+#[test]
+fn mv_rewrites_both_a_file_relative_link_and_a_root_relative_bare_path() {
+    // The check/mv drift repro: a subdir doc cites the SAME target two ways — a
+    // file-relative markdown link AND a root-relative backticked bare path. The
+    // bare-path *check* resolves root-relative, so mv's rewrite must too; otherwise
+    // it repoints the link, leaves the backtick stale, and its own verify-after
+    // (which runs bare-path) fails with exit 1. Both forms must rewrite and the
+    // move must land clean (exit 0).
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "docs/persistence.md", "# Persistence\n");
+    write(
+        dir.path(),
+        "plans/phase.md",
+        "See the storage map at [map](../docs/persistence.md) — root form `docs/persistence.md`.\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).args([
+        "mv",
+        "docs/persistence.md",
+        "docs/storage/persistence.md"
+    ]));
+    insta::assert_snapshot!(
+        "mv_rewrites_root_relative_bare_path",
+        fs::read_to_string(dir.path().join("plans/phase.md")).unwrap()
+    );
+}
+
 /// The `[status-header]` config a mycelia-shaped repo uses: issue/plan globs, a
 /// live/terminal vocabulary, and the three rules the frozen exemption suppresses.
 const STATUS_HEADER_CONFIG: &str = "\

@@ -1,0 +1,16 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - mv
+    - docs/persistence.md
+    - docs/storage/persistence.md
+---
+success: true
+exit_code: 0
+----- stdout -----
+moved docs/persistence.md → docs/storage/persistence.md (rewrote 2 reference(s) across 1 file(s))
+✓ ailint: checked 2 files, no findings
+
+----- stderr -----
