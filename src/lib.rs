@@ -100,7 +100,8 @@ fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> R
         fix::apply(&mut files, &resolver)?;
     }
     let diagnostics = engine::check(&files, &loaded.config, &cwd)?;
-    output::render(cli.output_format, &diagnostics, files.len(), out)?;
+    let sources = output::sources_from(&files);
+    output::render(cli.output_format, &diagnostics, files.len(), &sources, out)?;
     Ok(if diagnostics.is_empty() {
         ExitCode::SUCCESS
     } else {

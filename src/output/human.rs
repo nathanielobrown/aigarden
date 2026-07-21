@@ -6,10 +6,12 @@ use std::io::{self, Write};
 use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 
 use crate::diagnostic::Diagnostic;
+use crate::output::Sources;
 
 pub(super) fn render(
     diagnostics: &[Diagnostic],
     files_scanned: usize,
+    sources: &Sources<'_>,
     writer: &mut impl Write,
 ) -> io::Result<()> {
     if diagnostics.is_empty() {
@@ -20,16 +22,20 @@ pub(super) fn render(
         );
     }
     for diagnostic in diagnostics {
-        render_one(diagnostic, writer)?;
+        render_one(diagnostic, sources, writer)?;
     }
     let n = diagnostics.len();
     let plural = if n == 1 { "" } else { "s" };
     writeln!(writer, "ailint: {n} finding{plural}")
 }
 
-fn render_one(diagnostic: &Diagnostic, writer: &mut impl Write) -> io::Result<()> {
+fn render_one(
+    diagnostic: &Diagnostic,
+    sources: &Sources<'_>,
+    writer: &mut impl Write,
+) -> io::Result<()> {
     match diagnostic.span {
-        Some(span) => render_with_snippet(diagnostic, span, writer),
+        Some(span) => render_with_snippet(diagnostic, span, sources, writer),
         None => render_plain(diagnostic, writer),
     }
 }
@@ -49,14 +55,16 @@ fn render_plain(diagnostic: &Diagnostic, writer: &mut impl Write) -> io::Result<
     Ok(())
 }
 
-/// Span present: read the source and let `annotate-snippets` draw the excerpt.
+/// Span present: draw the excerpt from the in-memory source the rule spanned
+/// against. Reading fresh from disk would decode a non-UTF-8 file differently
+/// (or fail), producing a buffer the byte span overruns — a snippet-engine panic.
 fn render_with_snippet(
     diagnostic: &Diagnostic,
     span: crate::diagnostic::Span,
+    sources: &Sources<'_>,
     writer: &mut impl Write,
 ) -> io::Result<()> {
-    // The renderer needs the source text; read it fresh from disk by path.
-    let source = std::fs::read_to_string(&diagnostic.path).unwrap_or_default();
+    let source = sources.get(diagnostic.path.as_str()).copied().unwrap_or("");
     let mut annotation = AnnotationKind::Primary.span(span.start_byte..span.end_byte);
     if let Some(help) = &diagnostic.suggestion {
         annotation = annotation.label(help.as_str());
@@ -65,7 +73,7 @@ fn render_with_snippet(
         .primary_title(diagnostic.message.as_str())
         .id(diagnostic.rule)
         .element(
-            Snippet::source(&source)
+            Snippet::source(source)
                 .path(diagnostic.path.as_str())
                 .annotation(annotation),
         )];

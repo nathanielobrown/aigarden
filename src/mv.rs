@@ -89,7 +89,8 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
     let residue = engine::check_with(&verified, &loaded.config, &cwd, |name| {
         LINK_RULES.contains(&name)
     })?;
-    output::render(cli.output_format, &residue, verified.len(), out)?;
+    let sources = output::sources_from(&verified);
+    output::render(cli.output_format, &residue, verified.len(), &sources, out)?;
     Ok(if residue.is_empty() {
         ExitCode::SUCCESS
     } else {

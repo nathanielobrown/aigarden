@@ -85,7 +85,8 @@ pub(crate) fn check_repo(
     if !failures.is_empty() {
         bail!(failures.join("\n"));
     }
-    output::render(format, &diagnostics, files.len(), out)?;
+    let sources = output::sources_from(files);
+    output::render(format, &diagnostics, files.len(), &sources, out)?;
     Ok(if diagnostics.is_empty() {
         ExitCode::SUCCESS
     } else {

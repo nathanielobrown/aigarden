@@ -90,6 +90,22 @@ fn no_files_found_fails_with_exit_two() {
 }
 
 #[test]
+fn check_on_a_non_utf8_file_does_not_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    // A markdown file with invalid UTF-8 bytes plus a broken link. The walker reads
+    // it lossily (bytes → U+FFFD), and the link rule spans against that in-memory
+    // copy. The human renderer must draw from the *same* in-memory content — never
+    // re-read the file from disk, which decodes differently and panics the snippet
+    // engine with an out-of-range span.
+    fs::write(
+        dir.path().join("bad.md"),
+        [b"\xff\xfe\x00".as_slice(), b"See [x](nope.md).\n"].concat(),
+    )
+    .unwrap();
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
 fn link_target_flags_a_broken_relative_link() {
     let dir = tempfile::tempdir().unwrap();
     write(

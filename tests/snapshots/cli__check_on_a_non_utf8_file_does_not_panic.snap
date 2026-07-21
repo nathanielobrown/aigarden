@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[link-target]: link target `nope.md` does not exist
+ --> bad.md:1:12
+  |
+1 | ��␀See [x](nope.md).
+  |            ^^^^^^^ fix the path, or create the target
+ailint: 1 finding
+
+----- stderr -----
