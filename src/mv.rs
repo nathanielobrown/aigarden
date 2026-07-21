@@ -62,7 +62,13 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
         bail!("destination `{}` already exists", display(&dst_abs, &cwd));
     }
 
-    move_file(&src_abs, &dst_abs)?;
+    // The move and its rewrites either both go through git (src tracked) or both
+    // stay off it (plain rename). Decide once so staging mirrors `git mv`: when
+    // `git mv` stages the rename, the reference rewrites are staged too, so the
+    // whole move lands as one changeset rather than leaving rewrites for a
+    // downstream `git add` to sweep (which risks staging unrelated worktree edits).
+    let git_move = is_git_tracked(&src_abs);
+    move_file(&src_abs, &dst_abs, git_move)?;
 
     // Walk the tree as it stands after the move (dst present, src gone).
     let files = walk::walk(
@@ -70,7 +76,8 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
         &loaded.config.exclude.effective_paths(),
         &cwd,
     )?;
-    let (files_touched, refs_rewritten) = rewrite_references(&files, &cwd, &src_abs, &dst_abs)?;
+    let (files_touched, refs_rewritten) =
+        rewrite_references(&files, &cwd, &src_abs, &dst_abs, git_move)?;
 
     if matches!(cli.output_format, OutputFormat::Human) {
         writeln!(
@@ -113,14 +120,14 @@ fn destination(cwd: &Path, src_abs: &Path, dst: &str) -> PathBuf {
     }
 }
 
-/// Move the file with `git mv` when it is tracked, else a plain rename. Either
-/// way the destination's parent directory is created first.
-fn move_file(src_abs: &Path, dst_abs: &Path) -> Result<()> {
+/// Move the file with `git mv` when `git_move` (src is tracked), else a plain
+/// rename. Either way the destination's parent directory is created first.
+fn move_file(src_abs: &Path, dst_abs: &Path, git_move: bool) -> Result<()> {
     if let Some(parent) = dst_abs.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
     }
-    if is_git_tracked(src_abs) {
+    if git_move {
         let status = Command::new("git")
             .arg("mv")
             .arg(src_abs)
@@ -160,6 +167,7 @@ fn rewrite_references(
     root: &Path,
     src_abs: &Path,
     dst_abs: &Path,
+    git_move: bool,
 ) -> Result<(usize, usize)> {
     let dst_dir = dst_abs.parent().unwrap_or(dst_abs);
     let mut files_touched = 0;
@@ -239,10 +247,34 @@ fn rewrite_references(
         }
         std::fs::write(&file.abs_path, &content)
             .with_context(|| format!("writing rewritten {}", file.rel_path))?;
+        // Stage exactly this rewrite when the move went through git, so the whole
+        // change (rename + every referencing edit) is one staged changeset. Only
+        // the file ailint just wrote is staged — never anything else in the tree.
+        if git_move {
+            git_add(&file.abs_path)?;
+        }
         files_touched += 1;
         refs_rewritten += edits.len();
     }
     Ok((files_touched, refs_rewritten))
+}
+
+/// `git add` a single path — used to stage each file `mv` rewrote, matching the
+/// staging `git mv` already does for the rename.
+fn git_add(path: &Path) -> Result<()> {
+    let status = Command::new("git")
+        .arg("add")
+        .arg(path)
+        .output()
+        .context("running `git add`")?;
+    if !status.status.success() {
+        bail!(
+            "`git add {}` failed: {}",
+            path.display(),
+            String::from_utf8_lossy(&status.stderr).trim()
+        );
+    }
+    Ok(())
 }
 
 /// A path shown relative to `cwd` when possible, forward-slashed, for messages.

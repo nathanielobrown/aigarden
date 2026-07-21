@@ -3,26 +3,11 @@
 //! they exercise config discovery, the walker, the engine, and every renderer.
 
 use std::fs;
-use std::path::Path;
-use std::process::Command;
 
-use insta_cmd::{assert_cmd_snapshot, get_cargo_bin};
+use insta_cmd::assert_cmd_snapshot;
 
-/// A `Command` for the built `ailint` binary, rooted in `dir`.
-fn ailint(dir: &Path) -> Command {
-    let mut cmd = Command::new(get_cargo_bin("ailint"));
-    cmd.current_dir(dir);
-    cmd
-}
-
-/// Write `content` to `dir/name`, creating parent dirs.
-fn write(dir: &Path, name: &str, content: &str) {
-    let path = dir.join(name);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).unwrap();
-    }
-    fs::write(path, content).unwrap();
-}
+mod common;
+use common::{ailint, write};
 
 #[test]
 fn rules_lists_the_registered_rules() {
@@ -497,81 +482,6 @@ fn cog_fresh_surfaces_in_a_check_run() {
         "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
     );
     assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
-}
-
-// ── mv ───────────────────────────────────────────────────────────────────────
-
-#[test]
-fn mv_rewrites_references_across_the_repo() {
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "guide.md", "# Guide\n");
-    write(
-        dir.path(),
-        "docs/readme.md",
-        "See [the guide](../guide.md).\n",
-    );
-    // Move the guide into docs/; the referrer's link must repoint.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "guide.md", "docs/guide.md"]));
-    insta::assert_snapshot!(
-        "mv_rewrites_referrer",
-        fs::read_to_string(dir.path().join("docs/readme.md")).unwrap()
-    );
-}
-
-#[test]
-fn mv_reanchors_the_moved_files_own_links() {
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "sibling.md", "# Sibling\n");
-    write(dir.path(), "doc.md", "Link to [sib](sibling.md).\n");
-    // Moving doc.md into sub/ must re-anchor its own outbound link.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "doc.md", "sub/doc.md"]));
-    insta::assert_snapshot!(
-        "mv_reanchored_moved_file",
-        fs::read_to_string(dir.path().join("sub/doc.md")).unwrap()
-    );
-}
-
-#[test]
-fn mv_into_a_directory_uses_the_source_filename() {
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "notes.md", "# Notes\n");
-    // A trailing-slash destination is a directory to move into.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "notes.md", "archive/"]));
-    assert!(dir.path().join("archive/notes.md").exists());
-}
-
-#[test]
-fn mv_refuses_when_the_destination_exists() {
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "a.md", "# A\n");
-    write(dir.path(), "b.md", "# B\n");
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "a.md", "b.md"]));
-}
-
-#[test]
-fn mv_rewrites_both_a_file_relative_link_and_a_root_relative_bare_path() {
-    // The check/mv drift repro: a subdir doc cites the SAME target two ways — a
-    // file-relative markdown link AND a root-relative backticked bare path. The
-    // bare-path *check* resolves root-relative, so mv's rewrite must too; otherwise
-    // it repoints the link, leaves the backtick stale, and its own verify-after
-    // (which runs bare-path) fails with exit 1. Both forms must rewrite and the
-    // move must land clean (exit 0).
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "docs/persistence.md", "# Persistence\n");
-    write(
-        dir.path(),
-        "plans/phase.md",
-        "See the storage map at [map](../docs/persistence.md) — root form `docs/persistence.md`.\n",
-    );
-    assert_cmd_snapshot!(ailint(dir.path()).args([
-        "mv",
-        "docs/persistence.md",
-        "docs/storage/persistence.md"
-    ]));
-    insta::assert_snapshot!(
-        "mv_rewrites_root_relative_bare_path",
-        fs::read_to_string(dir.path().join("plans/phase.md")).unwrap()
-    );
 }
 
 /// The `[status-header]` config a mycelia-shaped repo uses: issue/plan globs, a

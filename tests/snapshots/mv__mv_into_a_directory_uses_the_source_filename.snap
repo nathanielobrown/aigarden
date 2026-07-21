@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/mv.rs
 info:
   program: ailint
   args:
