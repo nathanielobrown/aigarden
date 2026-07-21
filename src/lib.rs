@@ -16,6 +16,7 @@ pub mod config;
 pub mod diagnostic;
 mod engine;
 mod output;
+pub mod references;
 mod rules;
 mod walk;
 
