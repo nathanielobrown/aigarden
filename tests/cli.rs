@@ -144,6 +144,15 @@ fn import_target_flags_a_broken_at_import() {
 }
 
 #[test]
+fn guidance_files_in_hidden_dirs_are_walked() {
+    let dir = tempfile::tempdir().unwrap();
+    // SKILL.md lives under a hidden `.claude/` tree; its broken @-import must
+    // still be caught (WS1's walker skipped hidden files by default).
+    write(dir.path(), ".claude/skills/x/SKILL.md", "@../missing.md\n");
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
 fn code_doc_ref_flags_a_missing_doc_path_in_source() {
     let dir = tempfile::tempdir().unwrap();
     write(

@@ -31,6 +31,11 @@ pub(crate) fn walk(paths: &[PathBuf], exclude: &[String], cwd: &Path) -> Result<
     for path in rest {
         builder.add(path);
     }
+    // Walk hidden files: guidance docs live under `.claude/` and dotfiles like
+    // `.cursorrules` carry @-imports the link rules must see. `.gitignore` still
+    // applies; only `.git` itself is pruned (it is never source content).
+    builder.hidden(false);
+    builder.filter_entry(|entry| entry.file_name() != ".git");
 
     let mut files = Vec::new();
     for entry in builder.build() {
