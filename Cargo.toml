@@ -1,0 +1,52 @@
+[package]
+name = "ailint"
+version = "0.0.0"
+edition = "2024"
+# Match the pinned toolchain (rust-toolchain.toml); single-dev tool, so no separate MSRV floor.
+rust-version = "1.97"
+description = "Lint and maintain repositories for AI-agent + human collaboration: link integrity, size budgets, generated-content freshness"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }  # CLI parsing: subcommands + global --output-format
+serde = { version = "1", features = ["derive"] }   # deserialize ailint.toml config into typed structs
+toml = "1.1"                                        # parse ailint.toml
+annotate-snippets = "0.12"                          # rustc-style annotated snippets for the human output format
+anyhow = "1"                                        # error context on the main/IO path (fail fast, crash loud)
+ignore = "0.4"                                      # gitignore-aware, parallel repository file walker
+globset = "0.4"                                     # compiled include/exclude glob sets driven by config
+pulldown-cmark = "0.13"                             # markdown AST for ailint's own reference-extraction rules
+# rumdl_lib: the only off-the-shelf crate doing offline cross-file link (MD057) + anchor (MD051) validation.
+# Pinned exactly — 0.2.x exposes an internal-shaped API that churns near-daily. default-features off drops the LSP/tokio stack.
+rumdl = { version = "=0.2.39", default-features = false, features = ["parallel"] }
+rayon = "1"                                         # per-file parallelism in the rule engine
+
+[dev-dependencies]
+insta = "1"        # snapshot tests of rendered diagnostics
+insta-cmd = "0.7"  # snapshot whole CLI invocations end-to-end
+tempfile = "3"     # throwaway fixture trees for link-resolution tests
+
+[lints.rust]
+unsafe_code = "warn"      # this tool has no reason to reach for unsafe
+unreachable_pub = "warn"  # keep the public surface deliberate
+
+[lints.clippy]
+# Group at priority -2 so the individual allows below (default priority 0) win over it.
+pedantic = { level = "warn", priority = -2 }
+# Pedantic lints that fight readability more than they earn:
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+# Restriction lints: all user-facing output must go through the diagnostics/output layer, never a raw print.
+print_stdout = "warn"
+print_stderr = "warn"
+dbg_macro = "warn"
+exit = "warn"
+
+[profile.release]
+# thin-LTO + 16 codegen units builds ~3.4x faster than fat+1 for no measured runtime loss (rumdl's finding).
+lto = "thin"
+codegen-units = 16
+strip = true  # drop symbols from the distributed binary

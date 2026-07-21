@@ -1,0 +1,25 @@
+# Rust toolchain comes from rust-toolchain.toml (rustup honours it), so mise pins no tools here.
+
+[tasks.build]
+description = "Compile the crate"
+run = "cargo build"
+
+[tasks.format]
+description = "Format the code in place"
+run = "cargo fmt"
+
+[tasks.lint]
+description = "Clippy with warnings denied"
+run = "cargo clippy --all-targets -- -D warnings"
+
+[tasks.test]
+description = "Run the test suite"
+run = "cargo test"
+
+[tasks.check]
+description = "Full gate: format check + clippy + tests"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --all-targets -- -D warnings",
+  "cargo test",
+]

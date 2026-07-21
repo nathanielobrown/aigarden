@@ -1,0 +1,4 @@
+[toolchain]
+# Exact pin so a fresh machine builds bit-identically; components ship rustfmt + clippy automatically.
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
