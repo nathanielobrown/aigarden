@@ -66,7 +66,7 @@ fn run_check(cli: &Cli, paths: &[PathBuf], out: &mut impl Write) -> Result<ExitC
         // Fail fast: zero files under the requested paths is a misconfiguration, not a clean pass.
         bail!("no files found under {scan_paths:?}");
     }
-    let diagnostics = engine::check(&files, &loaded.config);
+    let diagnostics = engine::check(&files, &loaded.config, &cwd);
     output::render(cli.output_format, &diagnostics, files.len(), out)?;
     Ok(if diagnostics.is_empty() {
         ExitCode::SUCCESS

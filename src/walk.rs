@@ -14,10 +14,8 @@ use ignore::WalkBuilder;
 pub(crate) struct SourceFile {
     /// Path relative to the invocation dir, forward-slashed — used in diagnostics.
     pub(crate) rel_path: String,
-    #[expect(
-        dead_code,
-        reason = "consumed by rules needing the on-disk path, e.g. WS2 link rules"
-    )]
+    /// Absolute on-disk path, used by rules that resolve references from a file's
+    /// own directory (link/import targets).
     pub(crate) abs_path: PathBuf,
     /// File contents, lossily decoded as UTF-8 (invalid bytes become U+FFFD).
     pub(crate) content: String,

@@ -24,6 +24,66 @@ pub struct Config {
     /// The `file-length` rule's budgets and toggle.
     #[serde(default)]
     pub file_length: FileLengthConfig,
+    /// `link-target`: relative markdown link/image targets exist on disk.
+    #[serde(default)]
+    pub link_target: RuleToggle,
+    /// `link-case`: a link target's case matches the filesystem exactly.
+    #[serde(default)]
+    pub link_case: RuleToggle,
+    /// `bare-path`: a backticked file-shaped path in prose exists.
+    #[serde(default)]
+    pub bare_path: RuleToggle,
+    /// `import-target`: an `@path` import in a guidance file resolves.
+    #[serde(default)]
+    pub import_target: RuleToggle,
+    /// `code-doc-ref`: a doc path cited in a non-markdown file exists.
+    #[serde(default)]
+    pub code_doc_ref: RuleToggle,
+    /// `anchor-resolves`: a `#fragment` resolves to a real heading (rumdl MD051).
+    #[serde(default)]
+    pub anchor_resolves: RuleToggle,
+    /// `markdown-style`: rumdl style rules surfaced under ailint config.
+    #[serde(default)]
+    pub markdown_style: MarkdownStyleConfig,
+}
+
+/// A plain per-rule on/off switch — the shared shape for rules with no other
+/// options. `enabled` defaults true so an absent table means "on".
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct RuleToggle {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+impl Default for RuleToggle {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
+/// under ailint keys, rather than exposing raw rumdl config. `reflow` maps to
+/// rumdl's MD013 one-paragraph-per-line normalization; the rest are rumdl's
+/// defaults, fixable via `ailint check --fix`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct MarkdownStyleConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Normalize each paragraph to a single line (rumdl MD013 reflow), the
+    /// convention the source repo uses. Off by default — it rewrites prose.
+    #[serde(default)]
+    pub reflow: bool,
+}
+
+impl Default for MarkdownStyleConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            reflow: false,
+        }
+    }
 }
 
 /// Paths skipped by every rule — the single home for the fixtures/worktree

@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[link-case]: link target `guide.md` case does not match the file on disk
+ --> doc.md:1:17
+  |
+1 | See [the guide](guide.md).
+  |                 ^^^^^^^^ match the committed path's exact case
+ailint: 1 finding
+
+----- stderr -----

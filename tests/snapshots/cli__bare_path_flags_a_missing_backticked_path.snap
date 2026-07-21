@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[bare-path]: bare path `src/missing.rs` does not exist
+ --> doc.md:1:10
+  |
+1 | Look at `src/missing.rs` in the tree.
+  |          ^^^^^^^^^^^^^^
+ailint: 1 finding
+
+----- stderr -----

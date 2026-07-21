@@ -3,6 +3,8 @@
 //! Never stops at the first failing rule — the whole point is one pass that
 //! surfaces every class of problem. Output is sorted for deterministic rendering.
 
+use std::path::Path;
+
 use crate::config::Config;
 use crate::diagnostic::Diagnostic;
 use crate::rules::{RuleContext, registry};
@@ -10,8 +12,12 @@ use crate::walk::SourceFile;
 
 /// Run every enabled rule over `files` and return all findings, sorted by
 /// (path, rule, start line) so renderers and snapshots are deterministic.
-pub(crate) fn check(files: &[SourceFile], config: &Config) -> Vec<Diagnostic> {
-    let ctx = RuleContext { files, config };
+pub(crate) fn check(files: &[SourceFile], config: &Config, root: &Path) -> Vec<Diagnostic> {
+    let ctx = RuleContext {
+        files,
+        config,
+        root,
+    };
     let mut diagnostics: Vec<Diagnostic> = registry()
         .iter()
         .filter(|rule| rule.enabled(config))

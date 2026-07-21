@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[link-target]: link target `guide.md` does not exist
+ --> doc.md:1:17
+  |
+1 | See [the guide](guide.md) for details.
+  |                 ^^^^^^^^ fix the path, or create the target
+ailint: 1 finding
+
+----- stderr -----
