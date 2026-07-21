@@ -31,6 +31,29 @@ fn rules_lists_the_registered_rules() {
 }
 
 #[test]
+fn explain_prints_a_rules_full_contract() {
+    // A fixable rule's contract: what it checks, its config keys with defaults, an
+    // example finding, and what `--fix` does — all sourced from the rule itself.
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "markdown-style"]));
+}
+
+#[test]
+fn explain_covers_a_config_gated_rule() {
+    // descriptive-anchor is on by default but inert until `patterns` is set — its
+    // config-gated status and its `patterns` key must both surface.
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "descriptive-anchor"]));
+}
+
+#[test]
+fn explain_on_an_unknown_rule_is_a_clean_error_not_a_panic() {
+    // A bad rule name is a tool error (exit 2) naming the known rules, never a panic.
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "no-such-rule"]));
+}
+
+#[test]
 fn check_clean_repo_is_quiet_and_exits_zero() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "small.rs", "fn main() {}\n");

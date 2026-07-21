@@ -52,6 +52,10 @@ fn dispatch(cli: &Cli, out: &mut impl Write) -> Result<ExitCode> {
             list_rules(out)?;
             Ok(ExitCode::SUCCESS)
         }
+        Command::Explain { rule } => {
+            explain_rule(rule, out)?;
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Cog { write, check } => run_cog(cli, *write, *check, out),
         Command::Mv { src, dst } => mv::run(cli, src, dst, out),
     }
@@ -109,15 +113,52 @@ fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> R
     })
 }
 
-/// List every registered rule, one `name — description` line, sorted by name.
+/// List every registered rule as a `name  status  description` row, sorted by
+/// name. The status column comes from each rule's own [`rules::Explanation`].
 fn list_rules(out: &mut impl Write) -> Result<()> {
-    let mut rules: Vec<_> = rules::registry()
+    let registry = rules::registry();
+    let mut rows: Vec<(&str, &str, &str)> = registry
         .iter()
-        .map(|r| (r.name(), r.description()))
+        .map(|r| (r.name(), r.explain().status(), r.description()))
         .collect();
-    rules.sort_by_key(|(name, _)| *name);
-    for (name, description) in rules {
-        writeln!(out, "{name} \u{2014} {description}")?;
+    rows.sort_by_key(|(name, ..)| *name);
+    let name_width = rows.iter().map(|(name, ..)| name.len()).max().unwrap_or(0);
+    for (name, status, description) in rows {
+        // `config-gated` (12 chars) is the widest status; pad the column to it.
+        writeln!(out, "{name:name_width$}  {status:<12}  {description}")?;
+    }
+    Ok(())
+}
+
+/// Print one rule's full contract for `ailint explain <rule>`, sourced entirely
+/// from the rule's [`rules::Explanation`]. An unknown name is a tool error (exit 2)
+/// listing the known rules — never a panic.
+fn explain_rule(name: &str, out: &mut impl Write) -> Result<()> {
+    let registry = rules::registry();
+    let Some(rule) = registry.iter().find(|r| r.name() == name) else {
+        let mut names: Vec<&str> = registry.iter().map(|r| r.name()).collect();
+        names.sort_unstable();
+        bail!("unknown rule `{name}`. Known rules: {}", names.join(", "));
+    };
+    let explanation = rule.explain();
+    writeln!(out, "{} \u{2014} {}", rule.name(), rule.description())?;
+    writeln!(out, "Status: {}", explanation.status())?;
+    writeln!(out, "\nWhat it checks\n  {}", explanation.checks)?;
+    writeln!(out, "\nConfig [{}]", rule.name())?;
+    for key in explanation.config {
+        writeln!(
+            out,
+            "  {} (default: {}) \u{2014} {}",
+            key.key, key.default, key.purpose
+        )?;
+    }
+    writeln!(out, "\nExample finding\n  {}", explanation.example)?;
+    match explanation.fix {
+        Some(fix) => writeln!(out, "\nFix\n  {fix}")?,
+        None => writeln!(
+            out,
+            "\nFix\n  No autofix \u{2014} a finding needs a human decision"
+        )?,
     }
     Ok(())
 }

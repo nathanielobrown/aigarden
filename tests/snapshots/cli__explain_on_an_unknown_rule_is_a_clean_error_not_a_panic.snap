@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - explain
+    - no-such-rule
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: unknown rule `no-such-rule`. Known rules: anchor-resolves, bare-path, code-doc-ref, cog-fresh, descriptive-anchor, file-length, import-target, link-case, link-target, markdown-style

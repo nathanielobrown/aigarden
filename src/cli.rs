@@ -59,8 +59,14 @@ pub enum Command {
         /// Destination path, or a directory (trailing `/`) to move into.
         dst: String,
     },
-    /// List the registered rules and their one-line descriptions.
+    /// List the registered rules with their status and one-line descriptions.
     Rules,
+    /// Print one rule's full contract: what it checks, its config keys, an example
+    /// finding, and whether `--fix` repairs it.
+    Explain {
+        /// The rule name, as shown by `ailint rules` (e.g. `bare-path`).
+        rule: String,
+    },
 }
 
 /// Output rendering format, selected with `--output-format`.

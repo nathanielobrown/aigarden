@@ -27,6 +27,7 @@ ailint cog --check           # fail if any generated block is stale
 ailint cog --write           # regenerate the stale blocks
 ailint mv old.md new/dir/    # move a file and rewrite every reference to it
 ailint rules                 # list the rules and their status
+ailint explain bare-path     # print one rule's full contract
 ailint check --output-format json   # machine-readable output for CI/agents
 ```
 

@@ -13,7 +13,7 @@ use crate::rules::resolve::{
     case_exact, is_checkable_local, is_gitignored, resolve_existing, resolve_from_file,
     resolve_from_root,
 };
-use crate::rules::{Rule, RuleContext};
+use crate::rules::{ENABLED_ONLY, Explanation, Rule, RuleContext};
 use crate::walk::SourceFile;
 
 /// Build a spanned diagnostic for a reference finding.
@@ -43,6 +43,17 @@ impl Rule for LinkTarget {
     }
     fn description(&self) -> &'static str {
         "a relative markdown link or image target exists on disk"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A relative markdown link or image target resolves to a file on disk, from \
+the linking file's own directory. An extensionless wiki-style target also tries a `.md` \
+sibling. External URLs, absolute paths, and pure `#anchors` are left alone.",
+            config: ENABLED_ONLY,
+            example: "link target `../guide.md` does not exist",
+            fix: None,
+            config_gated: false,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
@@ -89,6 +100,17 @@ impl Rule for LinkCase {
     fn description(&self) -> &'static str {
         "a link target's case matches the filesystem exactly"
     }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A link target that exists but under a different case — the macOS \
+case-insensitivity trap that opens locally yet 404s on case-sensitive CI. Only existing \
+targets are flagged, so a genuine 404 stays link-target's alone (no double report).",
+            config: ENABLED_ONLY,
+            example: "link target `docs/Guide.md` case does not match the file on disk",
+            fix: None,
+            config_gated: false,
+        }
+    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
         for file in ctx
@@ -134,6 +156,18 @@ impl Rule for BarePath {
     }
     fn description(&self) -> &'static str {
         "a backticked file-shaped path in markdown prose exists"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A backticked, file-shaped path in markdown prose exists, resolved against \
+the file's own directory or the repo root. Shell/glob metacharacters, `NNNN` placeholders, and \
+markdown-link labels are not treated as paths; a candidate resolving to a gitignored path is \
+skipped as an environment artifact.",
+            config: ENABLED_ONLY,
+            example: "bare path `src/missing.rs` does not exist",
+            fix: None,
+            config_gated: false,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let gitignore = crate::walk::root_gitignore(ctx.root);
@@ -186,6 +220,16 @@ impl Rule for ImportTarget {
     fn description(&self) -> &'static str {
         "an `@path` import in a guidance file resolves on disk"
     }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "An `@path` import in an always-loaded guidance file (e.g. CLAUDE.md) \
+resolves on disk. A broken `@`-import fails silently at load time, so nothing else catches it.",
+            config: ENABLED_ONLY,
+            example: "import `@docs/gone.md` does not resolve",
+            fix: None,
+            config_gated: false,
+        }
+    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
         for file in ctx
@@ -227,6 +271,17 @@ impl Rule for CodeDocRef {
     }
     fn description(&self) -> &'static str {
         "a doc path cited inside a non-markdown source file exists"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A doc path (`docs/…`, `issues/…`, `plans/…`) cited inside a non-markdown \
+source file exists, resolved repo-root-relative (nothing establishes a code file's doc \
+directory). A candidate resolving to a gitignored path is skipped as an environment artifact.",
+            config: ENABLED_ONLY,
+            example: "doc path `docs/gone.md` cited here does not exist",
+            fix: None,
+            config_gated: false,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let gitignore = crate::walk::root_gitignore(ctx.root);

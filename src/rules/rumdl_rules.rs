@@ -5,7 +5,7 @@
 //! diagnostics. Nothing else in the tree touches rumdl types.
 
 use crate::diagnostic::{Diagnostic, Span};
-use crate::rules::{Rule, RuleContext};
+use crate::rules::{ConfigKey, ENABLED_KEY, ENABLED_ONLY, Explanation, Rule, RuleContext};
 use crate::rumdl_adapter::{RumdlFinding, anchor_rules, char_pos_to_byte, run, style_rules};
 
 /// Map one rumdl warning to an ailint diagnostic, converting its character
@@ -36,6 +36,17 @@ impl Rule for AnchorResolves {
     fn description(&self) -> &'static str {
         "a link `#fragment` resolves to a heading in the target file"
     }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A markdown link `#fragment` points at a heading that exists — in the same \
+file, or for `other.md#frag` in the linked file. Backed by rumdl MD051, which owns the \
+heading-slug long tail.",
+            config: ENABLED_ONLY,
+            example: "Link fragment '#setup' does not have a corresponding heading",
+            fix: None,
+            config_gated: false,
+        }
+    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         // Index over *all* markdown files so cross-file (`other.md#frag`) lookups
         // resolve even when the target file has the rule disabled; then suppress
@@ -59,7 +70,30 @@ impl Rule for MarkdownStyle {
         "markdown-style"
     }
     fn description(&self) -> &'static str {
-        "markdown hygiene: trailing spaces, tabs, blank runs, final newline (fixable)"
+        "markdown hygiene: trailing spaces, tabs, blank runs, final newline"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, \
+multiple blank lines, a single final newline, and opt-in paragraph reflow. Each message is \
+prefixed with the originating rumdl rule id.",
+            config: &[
+                ENABLED_KEY,
+                ConfigKey {
+                    key: "reflow",
+                    default: "false",
+                    purpose: "normalize each paragraph to one line (rumdl MD013); off because \
+it rewrites prose",
+                },
+            ],
+            example: "[MD009] Trailing whitespace",
+            fix: Some(
+                "`ailint check --fix` rewrites each file in place: strips trailing spaces, \
+converts hard tabs, collapses blank-line runs, and ensures a single final newline (and \
+reflows paragraphs when reflow = true).",
+            ),
+            config_gated: false,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         // Style rules are single-file, but the rule *set* depends on each file's

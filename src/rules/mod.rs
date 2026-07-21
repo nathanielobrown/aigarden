@@ -57,9 +57,61 @@ pub(crate) trait Rule: Sync {
     fn name(&self) -> &'static str;
     /// One-line description shown by `ailint rules`.
     fn description(&self) -> &'static str;
+    /// The full contract `ailint explain <name>` prints. The rule owns its own
+    /// documentation, so `explain` and the `rules` status column have one source.
+    fn explain(&self) -> Explanation;
     /// Every finding this rule sees in `ctx`.
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic>;
 }
+
+/// The full, printable contract for a rule — what `ailint explain <name>` shows and
+/// where the `rules` status column comes from. Held on the rule so a rule is the
+/// single definition of its own behavior.
+pub(crate) struct Explanation {
+    /// What the rule checks and why it matters, in prose.
+    pub(crate) checks: &'static str,
+    /// Config keys the rule reads under its own `[<name>]` table, each with its
+    /// default and purpose. Every rule lists at least [`ENABLED_KEY`].
+    pub(crate) config: &'static [ConfigKey],
+    /// A representative finding message, so `explain` shows the shape of a hit.
+    pub(crate) example: &'static str,
+    /// What `ailint check --fix` does for this rule, or `None` when it has no
+    /// autofix (a finding needs a human decision).
+    pub(crate) fix: Option<&'static str>,
+    /// True for a rule on by default but inert until its config is supplied (only
+    /// `descriptive-anchor` today) — surfaced as the `config-gated` status.
+    pub(crate) config_gated: bool,
+}
+
+impl Explanation {
+    /// The one-word lifecycle label shown in the `rules` table and `explain` header.
+    pub(crate) fn status(&self) -> &'static str {
+        if self.fix.is_some() {
+            "fixable"
+        } else if self.config_gated {
+            "config-gated"
+        } else {
+            "report-only"
+        }
+    }
+}
+
+/// One config key a rule reads, for the `explain` Config section.
+pub(crate) struct ConfigKey {
+    pub(crate) key: &'static str,
+    pub(crate) default: &'static str,
+    pub(crate) purpose: &'static str,
+}
+
+/// The `enabled` toggle every rule shares — defined once (DRY across all rules).
+pub(crate) const ENABLED_KEY: ConfigKey = ConfigKey {
+    key: "enabled",
+    default: "true",
+    purpose: "set false to turn the rule off; scope it per-path with [[overrides]]",
+};
+
+/// The config surface of a rule whose only key is `enabled` — the reference rules.
+pub(crate) const ENABLED_ONLY: &[ConfigKey] = &[ENABLED_KEY];
 
 /// All registered rules. The single list the engine iterates and `rules` prints.
 pub(crate) fn registry() -> Vec<Box<dyn Rule>> {

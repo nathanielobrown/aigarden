@@ -8,15 +8,15 @@ info:
 success: true
 exit_code: 0
 ----- stdout -----
-anchor-resolves — a link `#fragment` resolves to a heading in the target file
-bare-path — a backticked file-shaped path in markdown prose exists
-code-doc-ref — a doc path cited inside a non-markdown source file exists
-cog-fresh — a generated cog block matches what its generator produces now
-descriptive-anchor — a stable-ID link carries descriptive anchor text, not just the bare ID
-file-length — flag files that exceed their per-glob size budget (lines or tokens)
-import-target — an `@path` import in a guidance file resolves on disk
-link-case — a link target's case matches the filesystem exactly
-link-target — a relative markdown link or image target exists on disk
-markdown-style — markdown hygiene: trailing spaces, tabs, blank runs, final newline (fixable)
+anchor-resolves     report-only   a link `#fragment` resolves to a heading in the target file
+bare-path           report-only   a backticked file-shaped path in markdown prose exists
+code-doc-ref        report-only   a doc path cited inside a non-markdown source file exists
+cog-fresh           report-only   a generated cog block matches what its generator produces now
+descriptive-anchor  config-gated  a stable-ID link carries descriptive anchor text, not just the bare ID
+file-length         report-only   flag files that exceed their per-glob size budget (lines or tokens)
+import-target       report-only   an `@path` import in a guidance file resolves on disk
+link-case           report-only   a link target's case matches the filesystem exactly
+link-target         report-only   a relative markdown link or image target exists on disk
+markdown-style      fixable       markdown hygiene: trailing spaces, tabs, blank runs, final newline
 
 ----- stderr -----

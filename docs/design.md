@@ -64,6 +64,13 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 Mycelia-specific gates (diagram-tree axis tags, `§N` design-doc refs, tracker status headers) are deliberately **not** in v1 — see [roadmap.md](roadmap.md).
 
+### Rule introspection
+
+Each rule carries its own contract — a description, config keys with defaults, an example finding, fix behavior, and a lifecycle status — on the `Rule` trait itself, so there is one source and no separate catalog to keep in sync. Two read-only commands surface it:
+
+- `ailint rules` — one row per rule: name, status (`report-only`, `fixable`, or `config-gated` for a rule inert until configured, like `descriptive-anchor`), and the one-line description
+- `ailint explain <rule>` — the full contract for one rule. An unknown name is a tool error (exit 2) that lists the known rules
+
 ## Config model
 
 `ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable via its own table, per-rule tables for thresholds. The walker already honors `.gitignore`; config `exclude` adds tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools.

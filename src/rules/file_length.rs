@@ -12,7 +12,7 @@ use rayon::prelude::*;
 
 use crate::config::{Budget, FileLengthConfig, Metric};
 use crate::diagnostic::Diagnostic;
-use crate::rules::{Rule, RuleContext};
+use crate::rules::{ConfigKey, ENABLED_KEY, Explanation, Rule, RuleContext};
 
 pub(crate) struct FileLength;
 
@@ -23,6 +23,32 @@ impl Rule for FileLength {
 
     fn description(&self) -> &'static str {
         "flag files that exceed their per-glob size budget (lines or tokens)"
+    }
+
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "Flags a file whose size exceeds the budget for the first glob it matches. \
+Code is budgeted in readable lines; always-loaded guidance and prose in context tokens \
+(ceil(chars/4)). Built-in budgets: CLAUDE/AGENTS/GEMINI/SKILL.md at 4000 tokens, other *.md \
+at 8000 tokens, source files at 700 lines.",
+            config: &[
+                ENABLED_KEY,
+                ConfigKey {
+                    key: "budget",
+                    default: "the built-in globs above",
+                    purpose: "[[file-length.budget]] entries (glob, metric = lines|tokens, max), \
+checked before the defaults; first match wins",
+                },
+                ConfigKey {
+                    key: "use-defaults",
+                    default: "true",
+                    purpose: "set false to run only your budgets, dropping the built-in globs",
+                },
+            ],
+            example: "812 lines exceeds the budget of 700 for `**/*.{rs,py,ts,...}`",
+            fix: None,
+            config_gated: false,
+        }
     }
 
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {

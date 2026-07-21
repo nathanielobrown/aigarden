@@ -22,7 +22,7 @@ use regex::Regex;
 use crate::config::DescriptiveAnchorConfig;
 use crate::diagnostic::{Diagnostic, Span};
 use crate::references::is_markdown;
-use crate::rules::{Rule, RuleContext};
+use crate::rules::{ConfigKey, ENABLED_KEY, Explanation, Rule, RuleContext};
 
 pub(crate) struct DescriptiveAnchor;
 
@@ -32,6 +32,26 @@ impl Rule for DescriptiveAnchor {
     }
     fn description(&self) -> &'static str {
         "a stable-ID link carries descriptive anchor text, not just the bare ID"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A markdown link whose visible text is *only* a bare stable ID (`ADR-0026`, \
+`T4`) reads badly when the link is the sentence's subject. The rule asks for descriptive anchor \
+text; the ID can stay in the link target. A parenthetical citation and text that merely contains \
+the ID are both allowed. Config-driven and inert until `patterns` is set.",
+            config: &[
+                ENABLED_KEY,
+                ConfigKey {
+                    key: "patterns",
+                    default: "none (rule inert)",
+                    purpose: "regexes for stable-ID shapes, e.g. [\"ADR-\\\\d+\", \"T\\\\d+\"]; \
+the rule fires only once set",
+                },
+            ],
+            example: "link text `ADR-0026` is a bare stable ID — give it descriptive anchor text",
+            fix: None,
+            config_gated: true,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         // Compile each distinct config table's patterns once, keyed by the table's

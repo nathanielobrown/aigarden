@@ -1,0 +1,28 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - explain
+    - descriptive-anchor
+---
+success: true
+exit_code: 0
+----- stdout -----
+descriptive-anchor — a stable-ID link carries descriptive anchor text, not just the bare ID
+Status: config-gated
+
+What it checks
+  A markdown link whose visible text is *only* a bare stable ID (`ADR-0026`, `T4`) reads badly when the link is the sentence's subject. The rule asks for descriptive anchor text; the ID can stay in the link target. A parenthetical citation and text that merely contains the ID are both allowed. Config-driven and inert until `patterns` is set.
+
+Config [descriptive-anchor]
+  enabled (default: true) — set false to turn the rule off; scope it per-path with [[overrides]]
+  patterns (default: none (rule inert)) — regexes for stable-ID shapes, e.g. ["ADR-\\d+", "T\\d+"]; the rule fires only once set
+
+Example finding
+  link text `ADR-0026` is a bare stable ID — give it descriptive anchor text
+
+Fix
+  No autofix — a finding needs a human decision
+
+----- stderr -----

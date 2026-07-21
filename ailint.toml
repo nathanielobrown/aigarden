@@ -11,6 +11,7 @@
 files = [
   "tests/**",                        # fixtures + committed snapshots: example paths by design
   "src/references.rs",               # the reference grammars, documented with example paths
+  "src/rules/reference_rules.rs",    # each rule's `explain()` example finding cites a sample doc path
   "src/rules/resolve.rs",            # path-resolution helpers, ditto
   "src/rules/descriptive_anchor.rs", # docstring + tests cite example `docs/adrs/*.md` links
   "src/config.rs",                   # config docstrings show example budget/override paths

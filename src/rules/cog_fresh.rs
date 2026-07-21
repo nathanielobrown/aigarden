@@ -9,7 +9,7 @@
 use crate::cog;
 use crate::diagnostic::Diagnostic;
 use crate::references::is_markdown;
-use crate::rules::{Rule, RuleContext};
+use crate::rules::{ENABLED_ONLY, Explanation, Rule, RuleContext};
 
 pub(crate) struct CogFresh;
 
@@ -19,6 +19,17 @@ impl Rule for CogFresh {
     }
     fn description(&self) -> &'static str {
         "a generated cog block matches what its generator produces now"
+    }
+    fn explain(&self) -> Explanation {
+        Explanation {
+            checks: "A generated cog block (`<!-- ailint:cog … -->` … `<!-- ailint:end -->`) \
+matches what its generator produces now. Regenerate stale blocks with `ailint cog --write`. A \
+failing generator becomes a finding here rather than aborting the whole check run.",
+            config: ENABLED_ONLY,
+            example: "cog block is stale — its generator now produces different output",
+            fix: None,
+            config_gated: false,
+        }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
