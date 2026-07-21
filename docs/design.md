@@ -87,6 +87,8 @@ enabled = true      # every rule can be switched off the same way
 reflow = true       # rumdl rules surface under ailint keys
 ```
 
+Unknown keys are rejected (a typo fails loudly at startup, never a silent no-op). `file-length` budgets resolve **user-first, then built-in defaults, first matching glob wins** — a user entry both overrides a default glob and extends coverage to new globs without re-listing the defaults. The built-in defaults live in `config.rs` (generic, no repo-specific globs): guidance files (`{CLAUDE,AGENTS,GEMINI,SKILL}.md`) and markdown budget tokens, source files budget lines; the cap is inclusive (`value > max` is a finding).
+
 ## Cogs
 
 A cog is a generated block whose body is recomputed on every run. Markers are HTML comments, so they vanish in rendered markdown:
@@ -115,11 +117,33 @@ Built-in trio for v1:
 
 `--output-format` selects the renderer, defaulting to `human`:
 
-- `human` — annotated source snippets (rustc-style, via `annotate-snippets`)
+- `human` — annotated source snippets (rustc-style, via `annotate-snippets`); findings without a span render as a compact `path: [rule] message` line
 - `json` — structured findings for agents and tooling
-- `github` — GitHub Actions workflow-command annotations
+- `github` — GitHub Actions workflow-command annotations (`::error file=…,line=…,col=…::[rule] message`)
 
 Across all formats: the **green path is silent** (one pass line), the **red path is loud** (every finding). ailint owns this UX natively rather than wrapping each check in an output shim.
+
+**Exit codes:** `0` clean, `1` findings, `2` tool/config error (bad config, no files found). A config or IO error is loud on stderr and never masquerades as a clean pass.
+
+The **json schema** is versioned so tooling can pin it:
+
+```json
+{
+  "version": 1,
+  "summary": { "files_scanned": 12, "findings": 1 },
+  "diagnostics": [
+    {
+      "rule": "file-length",
+      "path": "src/big.rs",
+      "message": "701 lines exceeds the budget of 700 for `**/*.rs`",
+      "suggestion": "split the file or raise the budget",
+      "span": null
+    }
+  ]
+}
+```
+
+`span` is `null` for whole-file findings, else `{ start_line, start_col, end_line, end_col, start_byte, end_byte }` (1-based line/col, byte offsets for autofix). `suggestion` is omitted when absent.
 
 ## Bugs fixed by design
 

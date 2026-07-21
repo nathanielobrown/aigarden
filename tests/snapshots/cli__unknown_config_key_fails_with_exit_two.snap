@@ -1,0 +1,17 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: parsing config file [CONFIG]: TOML parse error at line 1, column 2
+  |
+1 | [nonsense]
+  |  ^^^^^^^^
+unknown field `nonsense`, expected `exclude` or `file-length`

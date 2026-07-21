@@ -1,0 +1,13 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - rules
+---
+success: true
+exit_code: 0
+----- stdout -----
+file-length — flag files that exceed their per-glob size budget (lines or tokens)
+
+----- stderr -----

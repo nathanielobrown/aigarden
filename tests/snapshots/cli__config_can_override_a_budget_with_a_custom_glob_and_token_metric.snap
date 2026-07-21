@@ -1,0 +1,15 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+notes.txt: [file-length] 2 tokens exceeds the budget of 1 for `**/*.txt`
+  help: split the file or raise the `**/*.txt` budget in ailint.toml
+ailint: 1 finding
+
+----- stderr -----

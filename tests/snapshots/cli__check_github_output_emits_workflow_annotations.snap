@@ -1,0 +1,15 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+    - "--output-format"
+    - github
+---
+success: false
+exit_code: 1
+----- stdout -----
+::error file=big.rs::[file-length] 701 lines exceeds the budget of 700 for `**/*.{rs,py,ts,tsx,js,jsx,vue,go,java,kt,c,cc,cpp,h,hpp,rb,swift,sh}`
+
+----- stderr -----

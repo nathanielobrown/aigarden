@@ -1,0 +1,9 @@
+---
+source: src/output/human.rs
+expression: rendered
+---
+error[example-rule]: name is too long
+ --> sample.rs:2:5
+  |
+2 | let reallylongname = 2;
+  |     ^^^^^^^^^^^^^ shorten it

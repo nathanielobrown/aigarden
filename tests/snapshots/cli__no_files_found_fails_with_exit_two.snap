@@ -1,0 +1,13 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: no files found under ["."]
