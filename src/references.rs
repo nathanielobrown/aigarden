@@ -15,7 +15,7 @@
 
 use std::ops::Range;
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 /// One checkable reference found in a file. Renderer- and validator-agnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,13 +114,20 @@ fn split_fragment(raw: &str) -> (Option<String>, Option<String>) {
 /// code-span vs prose distinction is the parser's, not a regex's.
 fn extract_markdown(content: &str) -> Vec<Reference> {
     let mut refs = Vec::new();
+    // A backticked code span that is a link's *text* (`[`a/b.md`](url)`) is a link
+    // label, not a bare path — its target is the link rules' job. Track link/image
+    // nesting so those inner code spans are skipped (mirrors the source tool's
+    // `]( ` guard).
+    let mut link_depth = 0usize;
     let parser = Parser::new_ext(content, Options::all()).into_offset_iter();
     for (event, range) in parser {
         match event {
             Event::Start(Tag::Link { dest_url, .. }) => {
+                link_depth += 1;
                 push_dest(&mut refs, RefKind::MarkdownLink, &dest_url, content, &range);
             }
             Event::Start(Tag::Image { dest_url, .. }) => {
+                link_depth += 1;
                 push_dest(
                     &mut refs,
                     RefKind::MarkdownImage,
@@ -129,7 +136,10 @@ fn extract_markdown(content: &str) -> Vec<Reference> {
                     &range,
                 );
             }
-            Event::Code(code) => {
+            Event::End(TagEnd::Link | TagEnd::Image) => {
+                link_depth = link_depth.saturating_sub(1);
+            }
+            Event::Code(code) if link_depth == 0 => {
                 if let Some(reference) = bare_path_ref(&code, &range) {
                     refs.push(reference);
                 }
@@ -212,11 +222,21 @@ fn bare_path_ref(code: &str, range: &Range<usize>) -> Option<Reference> {
     })
 }
 
+/// Characters that mark a backticked span as code/glob/template rather than a
+/// path — a span containing any of these is prose, not a reference to resolve.
+/// Mirrors the source tool's `_BAD_SPAN_CHARS`.
+const BAD_SPAN_CHARS: &[char] = &[
+    '(', ')', '{', '}', '<', '>', '*', '$', '=', ':', '@', '"', '\'', '\\',
+];
+
 /// Heuristic for "this backticked span is a file path, not prose".
 fn looks_like_path(text: &str) -> bool {
     if text.is_empty()
         || text.contains(char::is_whitespace)
+        || text.contains(BAD_SPAN_CHARS)
         || text.contains("..")
+        || text.contains("NNNN") // a zero-padded-id placeholder, not a real path
+        || text.starts_with(".git/") // a runtime artifact (hook symlinks), not tracked content
         || text.split('/').count() < 2
     {
         return false;
@@ -414,6 +434,42 @@ mod tests {
         let md = "`SomeType`, `and/or`, `a/b`, `../up`, and `--flag` are not paths.\n";
         let refs = extract("doc.md", md);
         assert!(refs.is_empty(), "got {refs:?}");
+    }
+
+    #[test]
+    fn bare_path_rejects_glob_template_and_placeholder_spans() {
+        // Backticked spans carrying glob/template metacharacters, an `NNNN`
+        // placeholder, or a `.git/` runtime-artifact prefix are not file paths to
+        // resolve — mirrors the source tool's `_BAD_SPAN_CHARS`/`NNNN`/`.git/` guards.
+        for span in [
+            "`.claude/agents/*.md`",         // glob star
+            "`handoffs/handoff-<topic>.md`", // template angle brackets
+            "`issues/NNNN-title.md`",        // NNNN placeholder
+            "`.git/hooks/pre-commit`",       // .git runtime artifact
+            "`a/b(c).md`",                   // parens
+        ] {
+            let md = format!("Prose with {span} inline.\n");
+            let refs = extract("doc.md", &md);
+            assert!(
+                refs.iter().all(|r| r.kind != RefKind::BarePath),
+                "{span} should not be a bare path; got {refs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn backticked_link_label_is_not_a_bare_path() {
+        // A backticked code span that is a markdown link's *text* is the link's job
+        // (link-target / link-case), never a bare path — mirrors the source tool's
+        // `]( ` guard. The path-shaped label must not be flagged, but the link
+        // target is still extracted.
+        let md = "See [`triggerdotdev/trigger.dev`](https://example.com/x).\n";
+        let refs = extract("doc.md", md);
+        assert!(
+            refs.iter().all(|r| r.kind != RefKind::BarePath),
+            "got {refs:?}"
+        );
+        assert!(refs.iter().any(|r| r.kind == RefKind::MarkdownLink));
     }
 
     #[test]
