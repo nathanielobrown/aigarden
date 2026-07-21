@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[bare-path]: bare path `docs/gone.md` does not exist
+ --> issues/0002-live.md:5:19
+  |
+5 | Still references `docs/gone.md`.
+  |                   ^^^^^^^^^^^^
+ailint: 1 finding
+
+----- stderr -----

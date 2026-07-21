@@ -18,5 +18,6 @@ import-target       report-only   an `@path` import in a guidance file resolves 
 link-case           report-only   a link target's case matches the filesystem exactly
 link-target         report-only   a relative markdown link or image target exists on disk
 markdown-style      fixable       markdown hygiene: trailing spaces, tabs, blank runs, final newline
+status-header       config-gated  every issue/plan doc carries a recognized `**Status:**` header
 
 ----- stderr -----

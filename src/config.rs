@@ -55,6 +55,10 @@ pub struct Config {
     /// `descriptive-anchor`: a stable-ID link must carry descriptive text.
     #[serde(default)]
     pub descriptive_anchor: DescriptiveAnchorConfig,
+    /// `status-header`: the terminal-status "frozen docs" contract and exemption.
+    /// The config type lives with its rule ([`crate::rules::status_header`]).
+    #[serde(default)]
+    pub status_header: crate::rules::status_header::StatusHeaderConfig,
     /// Glob-scoped setting overrides, applied in declaration order (later wins),
     /// on top of the base tables above. See [`Override`] and [`Resolver`].
     #[serde(default)]
@@ -380,7 +384,7 @@ fn default_budgets() -> Vec<Budget> {
     ]
 }
 
-fn default_true() -> bool {
+pub(crate) fn default_true() -> bool {
     true
 }
 
@@ -448,6 +452,21 @@ impl Config {
             for pattern in &da.patterns {
                 anchored_pattern(pattern)
                     .with_context(|| format!("invalid `descriptive-anchor` pattern `{pattern}`"))?;
+            }
+        }
+        for glob in &self.status_header.files {
+            Glob::new(glob)
+                .with_context(|| format!("invalid `status-header` files glob `{glob}`"))?;
+        }
+        // Only a frozen-aware rule can honor the exemption; a name outside that set
+        // would silently do nothing, so reject it loudly (fail fast).
+        for rule in &self.status_header.suppresses {
+            if !crate::rules::status_header::FROZEN_AWARE_RULES.contains(&rule.as_str()) {
+                anyhow::bail!(
+                    "`status-header.suppresses` names `{rule}`, which is not a frozen-aware rule \
+                     (one of: {})",
+                    crate::rules::status_header::FROZEN_AWARE_RULES.join(", ")
+                );
             }
         }
         Ok(())

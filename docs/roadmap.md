@@ -12,7 +12,8 @@ Gates that exist today as one-off, hardcoded checks — worth porting only once 
 
 - **Numbered-section citations** — a `§N` (or configurable pattern) in source must match a numbered heading in a specific design doc. Generalize to a config triple `(citation_pattern, doc_path, source_glob)` rather than hardcoding one doc and one source tree
 - **Diagram-tree integrity** — a directory of diagrams as a zoom hierarchy crossed with named axes: axis-tag filenames, no dangling drill-down links, no orphan sub-diagrams. Highly domain-shaped; port only if a second repo wants it
-- **Status-header contracts** — issues/plans whose lifecycle state lives in a `**Status:**` header (never in the folder), with a vocabulary check and a "terminal-status files are frozen" exemption that some link rules honor. **The single biggest parity gap** (see [mycelia-parity.md](mycelia-parity.md)): a terminal-status doc may legitimately cite old, now-gone paths as historical record, so the bare-path/link-case/anchor rules must skip it. Without this, the mycelia shadow-run's entire residual — 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) docs, zero live — is noise
+
+**Status-header contracts** — the terminal-status "frozen docs" exemption, mycelia's single biggest parity gap — has **landed** as the generic `status-header` rule (see [design.md](design.md)). It closes the entire mycelia shadow-run residual: 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) docs, zero live.
 
 ## Token/char budgets inside code files
 

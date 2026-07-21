@@ -6,6 +6,7 @@
 //! internal parallelism. Adding a rule here is the only wiring step — the engine
 //! and the `rules` listing pick it up automatically.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::config::{Config, Resolver};
@@ -18,6 +19,7 @@ mod file_length;
 mod reference_rules;
 pub(crate) mod resolve;
 mod rumdl_rules;
+pub(crate) mod status_header;
 
 /// Read-only view of the repository handed to every rule. Carries the whole walked
 /// file set plus a [`Resolver`]; a rule reads a file's effective config through the
@@ -31,6 +33,9 @@ pub(crate) struct RuleContext<'a> {
     pub(crate) resolver: &'a Resolver<'a>,
     /// The scan root, for resolving repo-root-relative references.
     pub(crate) root: &'a Path,
+    /// Repo-relative paths of terminal-status "frozen" tracker docs (empty when the
+    /// `[status-header]` mechanism is inert). Computed once by the engine.
+    pub(crate) frozen: &'a HashSet<String>,
 }
 
 impl<'a> RuleContext<'a> {
@@ -39,13 +44,28 @@ impl<'a> RuleContext<'a> {
         config: &'a Config,
         resolver: &'a Resolver<'a>,
         root: &'a Path,
+        frozen: &'a HashSet<String>,
     ) -> Self {
         Self {
             files,
             config,
             resolver,
             root,
+            frozen,
         }
+    }
+
+    /// True when `rule`'s finding on `rel_path` is suppressed by the frozen
+    /// exemption: the file is a terminal-status doc and `rule` is in
+    /// `[status-header] suppresses`. The single seam the frozen-aware rules consult.
+    pub(crate) fn frozen_suppressed(&self, rule: &str, rel_path: &str) -> bool {
+        self.frozen.contains(rel_path)
+            && self
+                .config
+                .status_header
+                .suppresses
+                .iter()
+                .any(|r| r == rule)
     }
 }
 
@@ -126,5 +146,6 @@ pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
         Box::new(rumdl_rules::MarkdownStyle),
         Box::new(cog_fresh::CogFresh),
         Box::new(descriptive_anchor::DescriptiveAnchor),
+        Box::new(status_header::StatusHeader),
     ]
 }

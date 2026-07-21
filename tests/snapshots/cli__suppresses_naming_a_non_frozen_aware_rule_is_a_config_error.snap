@@ -1,0 +1,13 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+ailint: in config file [CONFIG]: `status-header.suppresses` names `file-length`, which is not a frozen-aware rule (one of: bare-path, link-case, descriptive-anchor)

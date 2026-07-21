@@ -62,7 +62,11 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 - `descriptive-anchor` — a stable-ID link whose *whole visible text* is a bare ID reads badly when the link is a sentence's subject ("as [ADR-0026] argues" assumes the reader already knows 0026). The rule wants descriptive anchor text; the ID stays in the link target. Fully config-driven and generic: the ID shapes are regexes in `[descriptive-anchor] patterns`, so nothing is project-specific, and with no patterns the rule is **inert** (safe to leave on). A parenthetical citation — `(see [ADR-0026])` — reads as an aside, not a subject, and is never flagged; the whole-text match means `[ADR-0026 — gated publication]` is already descriptive and never flagged
 
-Mycelia-specific gates (diagram-tree axis tags, `§N` design-doc refs, tracker status headers) are deliberately **not** in v1 — see [roadmap.md](roadmap.md).
+**Frozen-history contract:**
+
+- `status-header` — a tracker doc (an issue or plan) carries its lifecycle state in a `**Status:** <value>` header, not its folder. Every doc matching `[status-header] files` must carry a status whose leading keyword is in `live ∪ terminal`; a missing or unrecognized status is a finding (**fail loud, never a silent skip**). A **terminal** status (e.g. `done`, `implemented`) marks the doc *frozen*: it is kept as as-built history and may legitimately cite now-gone paths, so its citations are exempt from the rules named in `[status-header] suppresses`. The exemption is deliberately narrow and keyed off *status*, not a path: only the reference-integrity rules where a historical citation legitimately appears are suppressible — **`bare-path`, `link-case`, `descriptive-anchor`** — and `suppresses` naming any other rule is a loud config error. `link-target`/`anchor-resolves` are **never** suppressible, because a frozen doc's *live* markdown links must still resolve, and structural rules like `file-length` are untouched. Config-driven and **inert** until `files` is set; a repo-wide contract, not per-path overridable. This closes mycelia's single biggest parity gap (see [roadmap.md](roadmap.md))
+
+Other mycelia-specific gates (diagram-tree axis tags, `§N` design-doc refs) are deliberately **not** in v1 — see [roadmap.md](roadmap.md).
 
 ### Rule introspection
 
@@ -100,6 +104,13 @@ reflow = true       # rumdl rules surface under ailint keys
 # descriptive-anchor: inert until you declare the stable-ID shapes (regexes).
 [descriptive-anchor]
 patterns = ["ADR-\\d+", "T\\d+", "P\\d+"]
+
+# status-header: the frozen-history contract; inert until `files` is set.
+[status-header]
+files = ["issues/**/*.md", "plans/*.md"]  # docs under the contract (README skipped)
+live = ["open", "needs-design", "in-progress", "active", "open question"]
+terminal = ["done", "wontfix", "implemented", "superseded"]  # frozen ⇒ exempt
+suppresses = ["bare-path", "link-case", "descriptive-anchor"]  # only these are allowed
 ```
 
 Unknown keys are rejected (a typo fails loudly at startup, never a silent no-op). `file-length` budgets resolve **user-first, then built-in defaults, first matching glob wins** — a user entry both overrides a default glob and extends coverage to new globs without re-listing the defaults. The built-in defaults live in `config.rs` (generic, no repo-specific globs): guidance files (`{CLAUDE,AGENTS,GEMINI,SKILL}.md`) and markdown budget tokens, source files budget lines; the cap is inclusive (`value > max` is a finding).

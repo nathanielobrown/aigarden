@@ -1,0 +1,13 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: true
+exit_code: 0
+----- stdout -----
+✓ ailint: checked 3 files, no findings
+
+----- stderr -----

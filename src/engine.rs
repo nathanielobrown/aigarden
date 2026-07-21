@@ -32,7 +32,10 @@ pub(crate) fn check_with(
     keep: impl Fn(&str) -> bool,
 ) -> Result<Vec<Diagnostic>> {
     let resolver = Resolver::new(config)?;
-    let ctx = RuleContext::new(files, config, &resolver, root);
+    // The frozen set (terminal-status docs) is cross-cutting: the status-header rule
+    // validates it, and the suppressed reference rules consult it. Compute it once.
+    let frozen = crate::rules::status_header::frozen_files(files, &config.status_header);
+    let ctx = RuleContext::new(files, config, &resolver, root, &frozen);
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     for rule in registry().iter().filter(|rule| keep(rule.name())) {
         diagnostics.extend(rule.check(&ctx));

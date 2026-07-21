@@ -113,11 +113,12 @@ targets are flagged, so a genuine 404 stays link-target's alone (no double repor
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.link_case(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path)
+                && ctx.resolver.link_case(&f.rel_path)
+                // Frozen (terminal-status) docs may cite old-cased historical paths.
+                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+        }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if !matches!(
                     reference.kind,
@@ -172,11 +173,12 @@ skipped as an environment artifact.",
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let gitignore = crate::walk::root_gitignore(ctx.root);
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.bare_path(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path)
+                && ctx.resolver.bare_path(&f.rel_path)
+                // Frozen (terminal-status) docs may cite now-gone historical paths.
+                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+        }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::BarePath {
                     continue;

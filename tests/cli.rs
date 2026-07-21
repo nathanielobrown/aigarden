@@ -547,3 +547,125 @@ fn mv_refuses_when_the_destination_exists() {
     write(dir.path(), "b.md", "# B\n");
     assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "a.md", "b.md"]));
 }
+
+/// The `[status-header]` config a mycelia-shaped repo uses: issue/plan globs, a
+/// live/terminal vocabulary, and the three rules the frozen exemption suppresses.
+const STATUS_HEADER_CONFIG: &str = "\
+[status-header]
+files = [\"issues/**/*.md\", \"plans/*.md\"]
+live = [\"open\"]
+terminal = [\"done\", \"implemented\"]
+suppresses = [\"bare-path\", \"link-case\", \"descriptive-anchor\"]
+";
+
+#[test]
+fn frozen_terminal_doc_exempts_a_bare_path_a_live_doc_does_not() {
+    // The core exemption: a terminal-status (`done`) issue may cite a now-gone path
+    // as historical record, so bare-path skips it; the identical citation in a
+    // live (`open`) issue is still flagged. Same missing target, opposite verdicts —
+    // the exemption keys off the status header, not the path.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(
+        dir.path(),
+        "issues/0001-closed.md",
+        "# 0001: Historical\n\n**Status:** done\n\nOnce lived at `docs/gone.md`.\n",
+    );
+    write(
+        dir.path(),
+        "issues/0002-live.md",
+        "# 0002: Live\n\n**Status:** open\n\nStill references `docs/gone.md`.\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn frozen_doc_still_has_its_live_markdown_link_checked() {
+    // The exemption is deliberately narrow: it never suppresses link-target, so a
+    // frozen doc's *live* markdown link to a missing file is still a finding — the
+    // historical-record allowance is only for backticked/cased/stable-ID citations.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(
+        dir.path(),
+        "issues/0003-closed.md",
+        "# 0003: Closed\n\n**Status:** done\n\nSee [the guide](docs/gone.md).\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn status_header_flags_an_unrecognized_status() {
+    // Fail loud, never a silent skip: a doc under the contract whose status is a
+    // typo is reported (and, being non-terminal, is not treated as frozen).
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(
+        dir.path(),
+        "issues/0004-typo.md",
+        "# 0004: Typo\n\n**Status:** dnoe\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn status_header_flags_a_missing_header() {
+    // A tracker doc with no status header at all is likewise reported — the index
+    // and the frozen set would otherwise silently misjudge it.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(
+        dir.path(),
+        "plans/no-status.md",
+        "# A plan with no status line\n\nBody only.\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn readme_under_a_tracker_glob_is_not_a_tracked_item() {
+    // A README matched by a `files` glob is prose about the tracker, not an item —
+    // it needs no status header and is never flagged.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(
+        dir.path(),
+        "issues/README.md",
+        "# Issues\n\nHow the tracker works.\n",
+    );
+    write(
+        dir.path(),
+        "issues/0005-open.md",
+        "# 0005: Live\n\n**Status:** open\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn suppresses_naming_a_non_frozen_aware_rule_is_a_config_error() {
+    // Only bare-path/link-case/descriptive-anchor can honor the exemption; naming
+    // any other rule (here file-length) would be a silent no-op, so it is a loud
+    // config error (exit 2) at load, never accepted.
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "ailint.toml",
+        "[status-header]\nfiles = [\"issues/**/*.md\"]\nterminal = [\"done\"]\nsuppresses = [\"file-length\"]\n",
+    );
+    write(
+        dir.path(),
+        "issues/0001.md",
+        "# 0001: X\n\n**Status:** done\n",
+    );
+    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    });
+}
+
+#[test]
+fn explain_covers_the_status_header_rule() {
+    // The frozen-docs contract's full config surface — files, header, live,
+    // terminal, suppresses — must surface through explain for a configuring repo.
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "status-header"]));
+}

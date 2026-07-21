@@ -77,6 +77,11 @@ the rule fires only once set",
             if !cfg.enabled {
                 continue;
             }
+            // A frozen (terminal-status) doc's historical stable-ID citations are
+            // exempt, like its bare paths and cased links.
+            if ctx.frozen_suppressed(self.name(), &file.rel_path) {
+                continue;
+            }
             let patterns = &compiled[&(std::ptr::from_ref(cfg) as usize)];
             if patterns.is_empty() {
                 continue;

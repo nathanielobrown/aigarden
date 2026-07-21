@@ -1,0 +1,32 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - explain
+    - status-header
+---
+success: true
+exit_code: 0
+----- stdout -----
+status-header — every issue/plan doc carries a recognized `**Status:**` header
+Status: config-gated
+
+What it checks
+  Every doc matching `[status-header] files` carries a `**Status:** <value>` header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` is set; not per-path overridable — it is a repo-wide contract.
+
+Config [status-header]
+  enabled (default: true) — set false to turn the rule off; scope it per-path with [[overrides]]
+  files (default: none (rule inert)) — globs of docs under the contract, e.g. ["issues/**/*.md", "plans/*.md"]; a README under a matched glob is never a tracked item
+  header (default: "Status") — the bold label parsed as `**<header>:** <value>`
+  live (default: none) — live (non-frozen) status keywords, e.g. ["open", "active"]
+  terminal (default: none) — terminal (frozen) status keywords, e.g. ["done", "implemented"]
+  suppresses (default: none) — reference rules the frozen exemption skips on a terminal doc; only bare-path, link-case, descriptive-anchor are accepted
+
+Example finding
+  status `dnoe` is not a recognized status (expected one of: open, done)
+
+Fix
+  No autofix — a finding needs a human decision
+
+----- stderr -----

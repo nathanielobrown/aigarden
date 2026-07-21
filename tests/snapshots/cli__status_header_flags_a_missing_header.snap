@@ -1,0 +1,15 @@
+---
+source: tests/cli.rs
+info:
+  program: ailint
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+plans/no-status.md: [status-header] missing a `**Status:**` header (expected one of: open, done, implemented)
+  help: set a `**Status:**` header to a keyword in `[status-header] live`/`terminal`
+ailint: 1 finding
+
+----- stderr -----
