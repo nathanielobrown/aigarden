@@ -16,10 +16,16 @@ run = "cargo clippy --all-targets -- -D warnings"
 description = "Run the test suite"
 run = "cargo test"
 
+[tasks.dogfood]
+description = "Run ailint over its own repo (via ailint.toml)"
+run = "cargo run --quiet -- check ."
+
 [tasks.check]
-description = "Full gate: format check + clippy + tests"
+description = "Full gate: format check + clippy + tests + self-lint"
 run = [
   "cargo fmt --check",
   "cargo clippy --all-targets -- -D warnings",
   "cargo test",
+  # Dogfood: ailint must pass its own reference/length rules on this repo.
+  "cargo run --quiet -- check .",
 ]
