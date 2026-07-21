@@ -26,7 +26,7 @@ mod walk;
 
 pub use cli::{Cli, Command, OutputFormat};
 
-use config::Config;
+use config::{Config, Resolver};
 
 /// Run a parsed CLI, rendering to stdout and returning the process exit code.
 ///
@@ -94,10 +94,12 @@ fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> R
     }
     // `--fix` rewrites the auto-fixable markdown-style findings on disk first, then
     // the check below reports whatever remains — so a second `--fix` run is clean.
-    if fix && loaded.config.markdown_style.enabled {
-        fix::apply(&mut files, loaded.config.markdown_style.reflow)?;
+    // Per-file `markdown-style` config (enabled, reflow) is resolved inside `apply`.
+    if fix {
+        let resolver = Resolver::new(&loaded.config)?;
+        fix::apply(&mut files, &resolver)?;
     }
-    let diagnostics = engine::check(&files, &loaded.config, &cwd);
+    let diagnostics = engine::check(&files, &loaded.config, &cwd)?;
     output::render(cli.output_format, &diagnostics, files.len(), out)?;
     Ok(if diagnostics.is_empty() {
         ExitCode::SUCCESS

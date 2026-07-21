@@ -5,39 +5,42 @@
 
 use std::path::Path;
 
-use crate::config::Config;
+use anyhow::Result;
+
+use crate::config::{Config, Resolver};
 use crate::diagnostic::Diagnostic;
 use crate::rules::{RuleContext, registry};
 use crate::walk::SourceFile;
 
-/// Run every enabled rule over `files` and return all findings, sorted by
+/// Run every rule over `files` and return all findings, sorted by
 /// (path, rule, start line) so renderers and snapshots are deterministic.
-pub(crate) fn check(files: &[SourceFile], config: &Config, root: &Path) -> Vec<Diagnostic> {
+pub(crate) fn check(files: &[SourceFile], config: &Config, root: &Path) -> Result<Vec<Diagnostic>> {
     check_with(files, config, root, |_| true)
 }
 
 /// Like [`check`], but only rules whose name satisfies `keep` run. `mv`'s
 /// verify-after step uses this to re-run just the reference-integrity rules.
+///
+/// Every rule runs over one shared [`RuleContext`]; enablement is per file, decided
+/// by the [`Resolver`] from base config plus glob-scoped overrides. Building the
+/// resolver compiles each override's globs — a malformed glob is a loud tool error
+/// (fail fast), never a silent no-op.
 pub(crate) fn check_with(
     files: &[SourceFile],
     config: &Config,
     root: &Path,
     keep: impl Fn(&str) -> bool,
-) -> Vec<Diagnostic> {
-    let ctx = RuleContext {
-        files,
-        config,
-        root,
-    };
-    let mut diagnostics: Vec<Diagnostic> = registry()
-        .iter()
-        .filter(|rule| rule.enabled(config) && keep(rule.name()))
-        .flat_map(|rule| rule.check(&ctx))
-        .collect();
+) -> Result<Vec<Diagnostic>> {
+    let resolver = Resolver::new(config)?;
+    let ctx = RuleContext::new(files, config, &resolver, root);
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
+    for rule in registry().iter().filter(|rule| keep(rule.name())) {
+        diagnostics.extend(rule.check(&ctx));
+    }
     diagnostics.sort_by(|a, b| {
         let a_line = a.span.map_or(0, |s| s.start_line);
         let b_line = b.span.map_or(0, |s| s.start_line);
         (a.path.as_str(), a.rule, a_line).cmp(&(b.path.as_str(), b.rule, b_line))
     });
-    diagnostics
+    Ok(diagnostics)
 }

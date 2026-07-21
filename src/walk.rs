@@ -71,7 +71,9 @@ fn display_path(abs: &Path, cwd: &Path) -> String {
     slashed.strip_prefix("./").unwrap_or(&slashed).to_string()
 }
 
-fn build_glob_set(patterns: &[String]) -> Result<GlobSet> {
+/// Compile `patterns` into a globset matched against repo-relative paths. Shared
+/// by the walker (global excludes) and the engine (per-rule excludes).
+pub(crate) fn build_glob_set(patterns: &[String]) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     for pattern in patterns {
         builder.add(Glob::new(pattern).with_context(|| format!("invalid glob {pattern:?}"))?);

@@ -11,15 +11,22 @@ use anyhow::{Context, Result, anyhow};
 use rumdl_lib::LintContext;
 use rumdl_lib::config::MarkdownFlavor;
 
+use crate::config::Resolver;
 use crate::references::is_markdown;
 use crate::rumdl_adapter::style_rules;
 use crate::walk::SourceFile;
 
 /// Rewrite each markdown file with the style fixes applied, updating `files` in
-/// place so the subsequent check sees the fixed content.
-pub(crate) fn apply(files: &mut [SourceFile], reflow: bool) -> Result<()> {
-    let rules = style_rules(reflow);
+/// place so the subsequent check sees the fixed content. Each file's `markdown-style`
+/// config is resolved through `resolver`, so an override can skip a file or change
+/// its `reflow` — the fix pass and the check agree on every file.
+pub(crate) fn apply(files: &mut [SourceFile], resolver: &Resolver<'_>) -> Result<()> {
     for file in files.iter_mut().filter(|f| is_markdown(&f.rel_path)) {
+        let cfg = resolver.markdown_style(&file.rel_path);
+        if !cfg.enabled {
+            continue;
+        }
+        let rules = style_rules(cfg.reflow);
         let mut content = file.content.clone();
         for rule in &rules {
             let ctx = LintContext::new(

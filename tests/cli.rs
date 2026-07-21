@@ -197,6 +197,52 @@ fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
 }
 
 #[test]
+fn override_scopes_a_single_rule_by_path() {
+    let dir = tempfile::tempdir().unwrap();
+    // grammar.rs both cites a fake doc path (a code-doc-ref finding) and is over a
+    // tiny line budget. An override that disables *only* code-doc-ref for that path
+    // must silence that rule while file-length still fires — a global exclude would
+    // drop the file from every rule, so this proves per-path, per-rule scoping.
+    write(
+        dir.path(),
+        "ailint.toml",
+        "[[file-length.budget]]\nglob = \"**/*.rs\"\nmetric = \"lines\"\nmax = 1\n\
+         [[overrides]]\nfiles = [\"grammar.rs\"]\n[overrides.code-doc-ref]\nenabled = false\n",
+    );
+    write(
+        dir.path(),
+        "grammar.rs",
+        "// example path docs/fake.md\nfn a() {}\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn later_override_reenables_a_rule_for_a_narrower_glob() {
+    let dir = tempfile::tempdir().unwrap();
+    // Two overrides both match src/keep.rs: the first disables code-doc-ref across
+    // src/**, the second re-enables it for src/keep.rs. Declaration order wins, so
+    // keep.rs is still checked (its fake doc path is flagged) while other.rs is not.
+    write(
+        dir.path(),
+        "ailint.toml",
+        "[[overrides]]\nfiles = [\"src/**\"]\n[overrides.code-doc-ref]\nenabled = false\n\
+         [[overrides]]\nfiles = [\"src/keep.rs\"]\n[overrides.code-doc-ref]\nenabled = true\n",
+    );
+    write(
+        dir.path(),
+        "src/keep.rs",
+        "// see docs/gone.md\nfn a() {}\n",
+    );
+    write(
+        dir.path(),
+        "src/other.rs",
+        "// see docs/gone.md\nfn b() {}\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
 fn code_doc_ref_flags_a_missing_doc_path_in_source() {
     let dir = tempfile::tempdir().unwrap();
     write(

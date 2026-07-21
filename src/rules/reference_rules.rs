@@ -7,7 +7,6 @@
 //! Splitting extraction (one grammar) from validation (these rules) is the design
 //! this tool is built on — the same references feed a future `mv` unchanged.
 
-use crate::config::Config;
 use crate::diagnostic::{Diagnostic, Span};
 use crate::references::{RefKind, extract, is_markdown};
 use crate::rules::resolve::{
@@ -44,12 +43,13 @@ impl Rule for LinkTarget {
     fn description(&self) -> &'static str {
         "a relative markdown link or image target exists on disk"
     }
-    fn enabled(&self, config: &Config) -> bool {
-        config.link_target.enabled
-    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| is_markdown(&f.rel_path)) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.link_target(&f.rel_path))
+        {
             for reference in extract(&file.rel_path, &file.content) {
                 if !matches!(
                     reference.kind,
@@ -88,12 +88,13 @@ impl Rule for LinkCase {
     fn description(&self) -> &'static str {
         "a link target's case matches the filesystem exactly"
     }
-    fn enabled(&self, config: &Config) -> bool {
-        config.link_case.enabled
-    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| is_markdown(&f.rel_path)) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.link_case(&f.rel_path))
+        {
             for reference in extract(&file.rel_path, &file.content) {
                 if !matches!(
                     reference.kind,
@@ -133,12 +134,13 @@ impl Rule for BarePath {
     fn description(&self) -> &'static str {
         "a backticked file-shaped path in markdown prose exists"
     }
-    fn enabled(&self, config: &Config) -> bool {
-        config.bare_path.enabled
-    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| is_markdown(&f.rel_path)) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.bare_path(&f.rel_path))
+        {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::BarePath {
                     continue;
@@ -175,12 +177,13 @@ impl Rule for ImportTarget {
     fn description(&self) -> &'static str {
         "an `@path` import in a guidance file resolves on disk"
     }
-    fn enabled(&self, config: &Config) -> bool {
-        config.import_target.enabled
-    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| is_markdown(&f.rel_path)) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.import_target(&f.rel_path))
+        {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::AtImport {
                     continue;
@@ -216,12 +219,13 @@ impl Rule for CodeDocRef {
     fn description(&self) -> &'static str {
         "a doc path cited inside a non-markdown source file exists"
     }
-    fn enabled(&self, config: &Config) -> bool {
-        config.code_doc_ref.enabled
-    }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| !is_markdown(&f.rel_path)) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| !is_markdown(&f.rel_path) && ctx.resolver.code_doc_ref(&f.rel_path))
+        {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::CodeDocRef {
                     continue;

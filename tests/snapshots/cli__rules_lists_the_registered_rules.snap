@@ -12,6 +12,7 @@ anchor-resolves — a link `#fragment` resolves to a heading in the target file
 bare-path — a backticked file-shaped path in markdown prose exists
 code-doc-ref — a doc path cited inside a non-markdown source file exists
 cog-fresh — a generated cog block matches what its generator produces now
+descriptive-anchor — a stable-ID link carries descriptive anchor text, not just the bare ID
 file-length — flag files that exceed their per-glob size budget (lines or tokens)
 import-target — an `@path` import in a guidance file resolves on disk
 link-case — a link target's case matches the filesystem exactly

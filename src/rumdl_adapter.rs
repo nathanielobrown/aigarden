@@ -50,15 +50,16 @@ pub(crate) fn style_rules(reflow: bool) -> Vec<Box<dyn RumdlRule>> {
     rules
 }
 
-/// Run `rules` over every markdown file, gathering single-file warnings and
+/// Run `rules` over the given markdown files, gathering single-file warnings and
 /// MD051-style workspace cross-file warnings. The workspace index is keyed by
 /// each file's absolute path — the same form MD051 resolves link targets to —
-/// so cross-file anchor lookups hit.
+/// so cross-file anchor lookups hit. Callers pass the files they want indexed;
+/// non-markdown files are filtered out here.
 pub(crate) fn run<'a>(
-    files: &'a [SourceFile],
+    files: impl Iterator<Item = &'a SourceFile>,
     rules: &[Box<dyn RumdlRule>],
 ) -> Vec<RumdlFinding<'a>> {
-    let md_files: Vec<&SourceFile> = files.iter().filter(|f| is_markdown(&f.rel_path)).collect();
+    let md_files: Vec<&SourceFile> = files.filter(|f| is_markdown(&f.rel_path)).collect();
     let flavor = MarkdownFlavor::Standard;
 
     // Phase 1: single-file lint + build the workspace index every file contributes to.

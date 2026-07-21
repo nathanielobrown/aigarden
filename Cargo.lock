@@ -24,6 +24,7 @@ dependencies = [
  "insta-cmd",
  "pulldown-cmark",
  "rayon",
+ "regex",
  "rumdl",
  "serde",
  "serde_json",

@@ -11,7 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use globset::GlobSet;
 use serde::{Deserialize, Serialize};
+
+use crate::walk::build_glob_set;
 
 /// The whole `ailint.toml` schema. Every field defaults, so `Config::default()`
 /// is a fully-working configuration.
@@ -48,6 +51,162 @@ pub struct Config {
     /// `cog-fresh`: every generated cog block matches its generator's output.
     #[serde(default)]
     pub cog_fresh: RuleToggle,
+    /// `descriptive-anchor`: a stable-ID link must carry descriptive text.
+    #[serde(default)]
+    pub descriptive_anchor: DescriptiveAnchorConfig,
+    /// Glob-scoped setting overrides, applied in declaration order (later wins),
+    /// on top of the base tables above. See [`Override`] and [`Resolver`].
+    #[serde(default)]
+    pub overrides: Vec<Override>,
+}
+
+/// A glob-scoped settings override, ruff/ESLint-style: for files matching `files`,
+/// each rule table it names **replaces** that rule's base table. Only the tables
+/// listed are affected; unlisted rules keep their base settings. Overrides apply
+/// in declaration order, so a later override wins over an earlier one, and any
+/// override wins over the base — the single mechanism for per-path settings
+/// (disabling a rule for a glob is how you exempt files from it).
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Override {
+    /// Globs (globset syntax, repo-relative) this override applies to. Required —
+    /// an override with no `files` matches nothing and is almost certainly a typo.
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub file_length: Option<FileLengthConfig>,
+    #[serde(default)]
+    pub markdown_style: Option<MarkdownStyleConfig>,
+    #[serde(default)]
+    pub descriptive_anchor: Option<DescriptiveAnchorConfig>,
+    #[serde(default)]
+    pub link_target: Option<RuleToggle>,
+    #[serde(default)]
+    pub link_case: Option<RuleToggle>,
+    #[serde(default)]
+    pub bare_path: Option<RuleToggle>,
+    #[serde(default)]
+    pub import_target: Option<RuleToggle>,
+    #[serde(default)]
+    pub code_doc_ref: Option<RuleToggle>,
+    #[serde(default)]
+    pub anchor_resolves: Option<RuleToggle>,
+    #[serde(default)]
+    pub cog_fresh: Option<RuleToggle>,
+}
+
+/// `descriptive-anchor`: config-driven, generic, and **inert until configured**.
+/// With no `patterns` it emits nothing, so it is safe to leave on by default.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct DescriptiveAnchorConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Regexes for stable-ID shapes (e.g. `ADR-\d+`, `T\d+`, `P\d+`). A markdown
+    /// link whose visible text is *only* one of these — a bare ID with no
+    /// descriptive words — is flagged, unless it sits inside a prose parenthetical
+    /// (a citation) or already carries an em dash (already descriptive).
+    #[serde(default)]
+    pub patterns: Vec<String>,
+}
+
+impl Default for DescriptiveAnchorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            patterns: Vec::new(),
+        }
+    }
+}
+
+/// Resolves each rule's effective config *for a given file*, applying the
+/// [`Override`] precedence (base < overrides, later declaration wins) in one place
+/// so no rule re-implements it. Override globs are compiled once at construction;
+/// a malformed glob is a loud tool error (fail fast), never a silent no-op.
+pub(crate) struct Resolver<'a> {
+    config: &'a Config,
+    /// One compiled glob set per override, index-aligned with `config.overrides`.
+    matchers: Vec<GlobSet>,
+}
+
+impl<'a> Resolver<'a> {
+    pub(crate) fn new(config: &'a Config) -> Result<Self> {
+        let matchers = config
+            .overrides
+            .iter()
+            .enumerate()
+            .map(|(i, ov)| {
+                build_glob_set(&ov.files)
+                    .with_context(|| format!("compiling `overrides[{i}].files` globs"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self { config, matchers })
+    }
+
+    /// The whole precedence rule: start from the base table, then let each matching
+    /// override that supplies this table replace it, in declaration order — so the
+    /// last matching override wins and any override beats the base.
+    fn resolve<T>(
+        &self,
+        path: &str,
+        base: &'a T,
+        pick: impl Fn(&'a Override) -> Option<&'a T>,
+    ) -> &'a T {
+        let mut chosen = base;
+        for (matcher, ov) in self.matchers.iter().zip(&self.config.overrides) {
+            if matcher.is_match(path)
+                && let Some(table) = pick(ov)
+            {
+                chosen = table;
+            }
+        }
+        chosen
+    }
+
+    pub(crate) fn file_length(&self, path: &str) -> &'a FileLengthConfig {
+        self.resolve(path, &self.config.file_length, |o| o.file_length.as_ref())
+    }
+    pub(crate) fn markdown_style(&self, path: &str) -> &'a MarkdownStyleConfig {
+        self.resolve(path, &self.config.markdown_style, |o| {
+            o.markdown_style.as_ref()
+        })
+    }
+    pub(crate) fn descriptive_anchor(&self, path: &str) -> &'a DescriptiveAnchorConfig {
+        self.resolve(path, &self.config.descriptive_anchor, |o| {
+            o.descriptive_anchor.as_ref()
+        })
+    }
+    pub(crate) fn link_target(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.link_target, |o| o.link_target.as_ref())
+            .enabled
+    }
+    pub(crate) fn link_case(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.link_case, |o| o.link_case.as_ref())
+            .enabled
+    }
+    pub(crate) fn bare_path(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.bare_path, |o| o.bare_path.as_ref())
+            .enabled
+    }
+    pub(crate) fn import_target(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.import_target, |o| {
+            o.import_target.as_ref()
+        })
+        .enabled
+    }
+    pub(crate) fn code_doc_ref(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.code_doc_ref, |o| o.code_doc_ref.as_ref())
+            .enabled
+    }
+    pub(crate) fn anchor_resolves(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.anchor_resolves, |o| {
+            o.anchor_resolves.as_ref()
+        })
+        .enabled
+    }
+    pub(crate) fn cog_fresh(&self, path: &str) -> bool {
+        self.resolve(path, &self.config.cog_fresh, |o| o.cog_fresh.as_ref())
+            .enabled
+    }
 }
 
 /// A plain per-rule on/off switch — the shared shape for rules with no other
@@ -335,6 +494,92 @@ mod tests {
     fn use_defaults_true_is_the_default() {
         let config: Config = toml::from_str("").unwrap();
         assert!(config.file_length.use_defaults);
+    }
+
+    #[test]
+    fn override_disables_a_rule_only_for_matching_files() {
+        // The single per-path mechanism: an override that sets `enabled = false`
+        // for a glob is how you exempt those files from a rule. Files outside the
+        // glob keep the base setting (on).
+        let config: Config = toml::from_str(
+            "[[overrides]]\nfiles = [\"tests/**\", \"src/references.rs\"]\n\
+             [overrides.code-doc-ref]\nenabled = false\n",
+        )
+        .unwrap();
+        let resolver = Resolver::new(&config).unwrap();
+        assert!(!resolver.code_doc_ref("tests/cli.rs"), "matched → off");
+        assert!(!resolver.code_doc_ref("src/references.rs"), "matched → off");
+        assert!(
+            resolver.code_doc_ref("src/engine.rs"),
+            "unmatched → base on"
+        );
+    }
+
+    #[test]
+    fn later_override_wins_over_earlier() {
+        // Declaration order is the tiebreak, ruff-style: two overrides both match
+        // the same file, and the later one's table replaces the earlier one's.
+        let config: Config = toml::from_str(
+            "[[overrides]]\nfiles = [\"docs/**\"]\n[overrides.code-doc-ref]\nenabled = false\n\
+             [[overrides]]\nfiles = [\"docs/api.md\"]\n[overrides.code-doc-ref]\nenabled = true\n",
+        )
+        .unwrap();
+        let resolver = Resolver::new(&config).unwrap();
+        assert!(
+            resolver.code_doc_ref("docs/api.md"),
+            "later override re-enables"
+        );
+        assert!(
+            !resolver.code_doc_ref("docs/other.md"),
+            "only first matches"
+        );
+    }
+
+    #[test]
+    fn override_replaces_a_whole_rule_table() {
+        // An override table *replaces* the rule's base table (not a field merge):
+        // the override's file-length has no budgets and opts out of defaults, so a
+        // matched file has zero effective budgets while the base still has three.
+        let config: Config = toml::from_str(
+            "[[overrides]]\nfiles = [\"vendor/**\"]\n\
+             [overrides.file-length]\nuse-defaults = false\n",
+        )
+        .unwrap();
+        let resolver = Resolver::new(&config).unwrap();
+        assert_eq!(
+            resolver
+                .file_length("vendor/big.rs")
+                .effective_budgets()
+                .len(),
+            0,
+            "override table replaces base: no budgets"
+        );
+        assert_eq!(
+            resolver
+                .file_length("src/main.rs")
+                .effective_budgets()
+                .len(),
+            3,
+            "unmatched file keeps base budgets"
+        );
+    }
+
+    #[test]
+    fn descriptive_anchor_is_inert_until_configured() {
+        // On by default, but with no patterns it can never fire — safe to ship on.
+        let config = Config::default();
+        assert!(config.descriptive_anchor.enabled);
+        assert!(config.descriptive_anchor.patterns.is_empty());
+    }
+
+    #[test]
+    fn override_with_unknown_rule_key_is_rejected() {
+        // `deny_unknown_fields` on Override guards typo'd rule names inside an override.
+        let err = toml::from_str::<Config>(
+            "[[overrides]]\nfiles = [\"x\"]\n[overrides.nonsense]\nenabled = false\n",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("unknown field"), "{err}");
     }
 
     #[test]

@@ -5,10 +5,12 @@
 //! **tokens** (`ceil(chars/4)`). Both counts read the raw content so a missing
 //! trailing newline can't undercount (the `wc -l` bug this replaces).
 
+use std::collections::HashMap;
+
 use globset::{Glob, GlobMatcher};
 use rayon::prelude::*;
 
-use crate::config::{Budget, Metric};
+use crate::config::{Budget, FileLengthConfig, Metric};
 use crate::diagnostic::Diagnostic;
 use crate::rules::{Rule, RuleContext};
 
@@ -23,24 +25,38 @@ impl Rule for FileLength {
         "flag files that exceed their per-glob size budget (lines or tokens)"
     }
 
-    fn enabled(&self, config: &crate::config::Config) -> bool {
-        config.file_length.enabled
-    }
-
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        // Compile each budget's glob once, preserving first-match order.
-        let budgets: Vec<CompiledBudget> = ctx
-            .config
-            .file_length
-            .effective_budgets()
-            .into_iter()
-            .map(CompiledBudget::compile)
-            .collect::<Result<_, _>>()
-            .expect("config budget globs validated at load");
+        // A file's budgets depend on which `file-length` table an override resolves
+        // it to. Compile each *distinct* table once (keyed by its address — the
+        // resolver hands back the very same reference), so overrides that share a
+        // table don't recompile, and matching stays first-match within a table.
+        let mut compiled: HashMap<usize, Vec<CompiledBudget>> = HashMap::new();
+        let mut register = |flc: &FileLengthConfig| {
+            compiled
+                .entry(std::ptr::from_ref(flc) as usize)
+                .or_insert_with(|| {
+                    flc.effective_budgets()
+                        .into_iter()
+                        .map(CompiledBudget::compile)
+                        .collect::<Result<_, _>>()
+                        .expect("config budget globs validated at load")
+                });
+        };
+        register(&ctx.config.file_length);
+        for ov in &ctx.config.overrides {
+            if let Some(flc) = &ov.file_length {
+                register(flc);
+            }
+        }
 
         ctx.files
             .par_iter()
             .filter_map(|file| {
+                let flc = ctx.resolver.file_length(&file.rel_path);
+                if !flc.enabled {
+                    return None;
+                }
+                let budgets = &compiled[&(std::ptr::from_ref(flc) as usize)];
                 let budget = budgets
                     .iter()
                     .find(|b| b.matcher.is_match(&file.rel_path))?;

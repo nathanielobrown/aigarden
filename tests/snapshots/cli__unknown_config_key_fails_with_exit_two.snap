@@ -14,4 +14,4 @@ ailint: parsing config file [CONFIG]: TOML parse error at line 1, column 2
   |
 1 | [nonsense]
   |  ^^^^^^^^
-unknown field `nonsense`, expected one of `exclude`, `file-length`, `link-target`, `link-case`, `bare-path`, `import-target`, `code-doc-ref`, `anchor-resolves`, `markdown-style`, `cog-fresh`
+unknown field `nonsense`, expected one of `exclude`, `file-length`, `link-target`, `link-case`, `bare-path`, `import-target`, `code-doc-ref`, `anchor-resolves`, `markdown-style`, `cog-fresh`, `descriptive-anchor`, `overrides`

@@ -17,6 +17,7 @@ anyhow = "1"                                        # error context on the main/
 ignore = "0.4"                                      # gitignore-aware, parallel repository file walker
 globset = "0.4"                                     # compiled include/exclude glob sets driven by config
 pulldown-cmark = "0.13"                             # markdown AST for ailint's own reference-extraction rules
+regex = "1"                                         # user-configured stable-ID patterns for the descriptive-anchor rule
 # rumdl_lib: the only off-the-shelf crate doing offline cross-file link (MD057) + anchor (MD051) validation.
 # Pinned exactly — 0.2.x exposes an internal-shaped API that churns near-daily. default-features off drops the LSP/tokio stack.
 rumdl = { version = "=0.2.39", default-features = false, features = ["parallel"] }
