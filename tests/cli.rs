@@ -84,6 +84,39 @@ fn unknown_config_key_fails_with_exit_two() {
 }
 
 #[test]
+fn bad_budget_glob_is_a_clean_config_error_not_a_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    // A malformed `file-length` budget glob must be caught at config load as a
+    // tool/config error (exit 2), not compiled lazily inside the rule where it
+    // panics (exit 101). The message names the offending key and value.
+    write(
+        dir.path(),
+        "ailint.toml",
+        "[[file-length.budget]]\nglob = \"[unclosed\"\nmetric = \"lines\"\nmax = 1\n",
+    );
+    write(dir.path(), "a.rs", "fn main() {}\n");
+    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    });
+}
+
+#[test]
+fn bad_descriptive_anchor_pattern_is_a_clean_config_error_not_a_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    // A malformed `descriptive-anchor` regex is likewise a load-time config error
+    // (exit 2), not a panic from the rule's lazy `Regex::new`.
+    write(
+        dir.path(),
+        "ailint.toml",
+        "[descriptive-anchor]\npatterns = [\"ADR-(\\\\d+\"]\n",
+    );
+    write(dir.path(), "doc.md", "# Doc\n\nSee [ADR-1](x.md).\n");
+    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    });
+}
+
+#[test]
 fn no_files_found_fails_with_exit_two() {
     let dir = tempfile::tempdir().unwrap();
     assert_cmd_snapshot!(ailint(dir.path()).arg("check"));

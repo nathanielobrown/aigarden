@@ -80,16 +80,20 @@ impl Rule for DescriptiveAnchor {
     }
 }
 
-/// Compile a config table's patterns into whole-text-anchored regexes. Each user
-/// pattern must match the link's *entire* visible text, so a pattern like `ADR-\d+`
-/// flags `[ADR-0026]` but not `[ADR-0026 explained]`.
+/// Compile one stable-ID pattern into a whole-text-anchored regex — the exact form
+/// the rule matches with, so a pattern like `ADR-\d+` flags `[ADR-0026]` but not
+/// `[ADR-0026 explained]`. Shared with config-load validation ([`crate::config`]),
+/// so a malformed pattern is a clean exit-2 there rather than a panic here.
+pub(crate) fn anchored_pattern(pattern: &str) -> Result<Regex, regex::Error> {
+    Regex::new(&format!("^(?:{pattern})$"))
+}
+
+/// Compile a config table's patterns into whole-text-anchored regexes. Patterns are
+/// validated at config load, so a compile error here is an unreachable invariant.
 fn compile(cfg: &DescriptiveAnchorConfig) -> Vec<Regex> {
     cfg.patterns
         .iter()
-        .map(|p| {
-            Regex::new(&format!("^(?:{p})$"))
-                .unwrap_or_else(|e| panic!("invalid `descriptive-anchor` pattern `{p}`: {e}"))
-        })
+        .map(|p| anchored_pattern(p).expect("descriptive-anchor patterns validated at config load"))
         .collect()
 }
 

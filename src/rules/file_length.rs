@@ -39,7 +39,7 @@ impl Rule for FileLength {
                         .into_iter()
                         .map(CompiledBudget::compile)
                         .collect::<Result<_, _>>()
-                        .expect("config budget globs validated at load")
+                        .expect("budget globs validated at config load")
                 });
         };
         register(&ctx.config.file_length);

@@ -11,9 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use globset::GlobSet;
+use globset::{Glob, GlobSet};
 use serde::{Deserialize, Serialize};
 
+use crate::rules::descriptive_anchor::anchored_pattern;
 use crate::walk::build_glob_set;
 
 /// The whole `ailint.toml` schema. Every field defaults, so `Config::default()`
@@ -423,10 +424,45 @@ impl Config {
     }
 }
 
+impl Config {
+    /// Fail fast on any config value a rule would otherwise compile lazily (and
+    /// panic on): every `file-length` budget glob and every `descriptive-anchor`
+    /// pattern, across the base tables and every `[[overrides]]`. A malformed value
+    /// is a clean config error (exit 2) naming the offending key and value — the
+    /// same eager, load-time treatment override `files` globs already get.
+    fn validate(&self) -> Result<()> {
+        let mut budget_tables = vec![&self.file_length];
+        let mut anchor_tables = vec![&self.descriptive_anchor];
+        for ov in &self.overrides {
+            budget_tables.extend(ov.file_length.as_ref());
+            anchor_tables.extend(ov.descriptive_anchor.as_ref());
+        }
+        for flc in budget_tables {
+            for budget in &flc.budget {
+                Glob::new(&budget.glob).with_context(|| {
+                    format!("invalid `file-length` budget glob `{}`", budget.glob)
+                })?;
+            }
+        }
+        for da in anchor_tables {
+            for pattern in &da.patterns {
+                anchored_pattern(pattern)
+                    .with_context(|| format!("invalid `descriptive-anchor` pattern `{pattern}`"))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 fn parse_file(path: &Path) -> Result<Config> {
     let text = fs::read_to_string(path)
         .with_context(|| format!("reading config file {}", path.display()))?;
-    toml::from_str(&text).with_context(|| format!("parsing config file {}", path.display()))
+    let config: Config =
+        toml::from_str(&text).with_context(|| format!("parsing config file {}", path.display()))?;
+    config
+        .validate()
+        .with_context(|| format!("in config file {}", path.display()))?;
+    Ok(config)
 }
 
 #[cfg(test)]
