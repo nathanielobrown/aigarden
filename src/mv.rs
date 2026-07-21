@@ -64,7 +64,11 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
     move_file(&src_abs, &dst_abs)?;
 
     // Walk the tree as it stands after the move (dst present, src gone).
-    let files = walk::walk(&[PathBuf::from(".")], &loaded.config.exclude.paths, &cwd)?;
+    let files = walk::walk(
+        &[PathBuf::from(".")],
+        &loaded.config.exclude.effective_paths(),
+        &cwd,
+    )?;
     let (files_touched, refs_rewritten) = rewrite_references(&files, &cwd, &src_abs, &dst_abs)?;
 
     if matches!(cli.output_format, OutputFormat::Human) {
@@ -77,7 +81,11 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
     }
 
     // Verify-after: re-read the tree and re-run only the reference-integrity rules.
-    let verified = walk::walk(&[PathBuf::from(".")], &loaded.config.exclude.paths, &cwd)?;
+    let verified = walk::walk(
+        &[PathBuf::from(".")],
+        &loaded.config.exclude.effective_paths(),
+        &cwd,
+    )?;
     let residue = engine::check_with(&verified, &loaded.config, &cwd, |name| {
         LINK_RULES.contains(&name)
     });

@@ -64,7 +64,11 @@ fn dispatch(cli: &Cli, out: &mut impl Write) -> Result<ExitCode> {
 fn run_cog(cli: &Cli, write: bool, check: bool, out: &mut impl Write) -> Result<ExitCode> {
     let cwd = env::current_dir()?;
     let loaded = Config::discover(cli.config.as_deref(), &cwd)?;
-    let files = walk::walk(&[PathBuf::from(".")], &loaded.config.exclude.paths, &cwd)?;
+    let files = walk::walk(
+        &[PathBuf::from(".")],
+        &loaded.config.exclude.effective_paths(),
+        &cwd,
+    )?;
     // `check`/`write` are a required, mutually-exclusive pair (enforced by clap).
     if write {
         cog::write_repo(&files, &cwd, out)
@@ -83,7 +87,7 @@ fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> R
     } else {
         paths.to_vec()
     };
-    let mut files = walk::walk(&scan_paths, &loaded.config.exclude.paths, &cwd)?;
+    let mut files = walk::walk(&scan_paths, &loaded.config.exclude.effective_paths(), &cwd)?;
     if files.is_empty() {
         // Fail fast: zero files under the requested paths is a misconfiguration, not a clean pass.
         bail!("no files found under {scan_paths:?}");
