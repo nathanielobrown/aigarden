@@ -123,6 +123,26 @@ fn no_files_found_fails_with_exit_two() {
 }
 
 #[test]
+fn fix_help_text_names_the_fixable_rule_not_a_falsehood() {
+    // `markdown-style` is fixable (and `--fix` works), so the old "no rule does
+    // yet" help was false. The help must name the fixable rule and drop the lie.
+    let dir = tempfile::tempdir().unwrap();
+    let out = ailint(dir.path())
+        .args(["check", "--help"])
+        .output()
+        .unwrap();
+    let help = String::from_utf8(out.stdout).unwrap();
+    assert!(
+        help.contains("markdown-style"),
+        "--fix help should name the fixable rule; got:\n{help}"
+    );
+    assert!(
+        !help.contains("no rule does yet"),
+        "--fix help still claims no rule is fixable; got:\n{help}"
+    );
+}
+
+#[test]
 fn check_on_a_non_utf8_file_does_not_panic() {
     let dir = tempfile::tempdir().unwrap();
     // A markdown file with invalid UTF-8 bytes plus a broken link. The walker reads

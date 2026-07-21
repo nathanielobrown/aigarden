@@ -28,7 +28,7 @@ pub enum Command {
     Check {
         /// Paths to scan; defaults to the current directory.
         paths: Vec<PathBuf>,
-        /// Apply fixes in place where a rule supports them (no rule does yet).
+        /// Apply fixes in place where a rule supports them (currently markdown-style).
         #[arg(long)]
         fix: bool,
     },
