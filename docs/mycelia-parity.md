@@ -7,11 +7,13 @@ fixed, what is a deferred gap, and what is a deliberate non-goal. Read it to dec
 
 ## Verdict
 
-**At parity on the shared surface, with three named deferred gaps** — none blocking for a
-non-frozen-history repo, all blocking for mycelia specifically. After the in-scope fixes below,
+**At parity on the shared surface, with two named deferred gaps** — neither blocking for a
+non-frozen-history repo, the high-severity one blocking for mycelia specifically. After the in-scope fixes below,
 ailint's entire residual over mycelia is **193 findings from one unbuilt feature** (frozen-history
-exemption) plus **1 from a second** (gitignored-candidate skipping). Zero misses and zero
-grammar-level false positives remain.
+exemption) plus **1 from a second** (gitignored-candidate skipping). Two gaps this run named — the
+`code-doc-ref` fixture exemption and the `descriptive-anchor` rule — have since **shipped** (see
+[Gaps closed since the run](#gaps-closed-since-the-run)). Zero misses and zero grammar-level false
+positives remain.
 
 | Category | Before fixes | After fixes | Where it went |
 |---|---:|---:|---|
@@ -59,10 +61,11 @@ stand-in.
   exclude (see D3). Four new config tests.
 
 The remaining category-3 items — 192 `code-doc-ref` and 6 `reports` FPs — are suppressed by the
-tuned config's excludes, **not** a code fix, because a faithful mapping needs *per-rule* excludes
-that ailint doesn't have yet (a global exclude would also drop those files from `file-length`).
-That gap is a roadmap item, not an ailint bug: see
-[Per-rule and gitignored-candidate excludes](roadmap.md#per-rule-and-gitignored-candidate-excludes).
+tuned config, **not** a code fix. At run time a faithful mapping needed *per-rule* scoping ailint
+lacked (a global exclude would also drop those files from `file-length`); that scoping has since
+shipped as [`[[overrides]]`](design.md#per-path-overrides), so the tuned config now disables
+`code-doc-ref` for the fixture-bearing files via an override rather than a workaround (see
+[Gaps closed since the run](#gaps-closed-since-the-run)).
 
 ## Wins (category 2)
 
@@ -80,9 +83,19 @@ That gap is a roadmap item, not an ailint bug: see
 | Gap | Sev | Findings on mycelia | Tracking |
 |---|---|---:|---|
 | Frozen-history / status-header exemption | **High** | 193 | [Status-header contracts](roadmap.md#generalized-versions-of-single-repo-gates) |
-| Per-rule excludes (for `code-doc-ref` fixtures) | Med | 192 (masked by workaround) | [roadmap.md](roadmap.md#per-rule-and-gitignored-candidate-excludes) |
-| Descriptive-anchor citations (link layer 5) | Med | 0 now, guards 1189 links | [roadmap.md](roadmap.md#generalized-versions-of-single-repo-gates) |
-| Gitignored-candidate skipping | Low | 1 | [roadmap.md](roadmap.md#per-rule-and-gitignored-candidate-excludes) |
+| Gitignored-candidate skipping | Low | 1 | [roadmap.md](roadmap.md#gitignored-candidate-skipping) |
+
+### Gaps closed since the run
+
+Two gaps this run named have shipped:
+
+- **Per-rule scoping (was Med, 192 findings masked by a workaround)** — shipped as
+  [`[[overrides]]`](design.md#per-path-overrides): a glob-scoped, ruff-style mechanism where an
+  override replaces a rule's whole table for matching files, base < overrides, later wins. Disabling
+  `code-doc-ref` for the fixture-bearing files is now a first-class config, not a global-exclude
+  workaround. ailint dogfoods it — see this repo's `ailint.toml`
+- **`descriptive-anchor` (was Med, guards 1189 mycelia links)** — shipped as a config-driven rule
+  (`[descriptive-anchor] patterns = [...]`), inert until patterns are declared. See D1 below
 
 **Deliberate non-goals** (category 4, will never reach parity, by design): diagram-tree integrity,
 numbered-section (`§N`) citations, and symlink "farms" are domain-shaped one-offs listed under
@@ -93,12 +106,12 @@ marker grammar (`ailint:cog`/`ailint:end`) is a clean break from mycelia's `[[[c
 
 ## Design verdicts (Task D)
 
-- **D1 — is the deferred `descriptive-anchor` rule load-bearing? Yes, build it before cutover.** It
-  guards a **1189-link** surface in mycelia (stable-ID citations like `ADR-NNNN`, `T\d+`, `P\d+`
-  that must carry descriptive text, not a bare ID) yet emits **0 findings** today — so it is not an
-  urgent fix, but it *is* the one deferred link layer mycelia relies on, and a cutover that drops it
-  silently loses a real gate. Ship it config-driven (the ID shapes are repo-specific), not as a
-  hardcoded v1 rule.
+- **D1 — is the `descriptive-anchor` rule load-bearing? Yes — now shipped.** It guards a
+  **1189-link** surface in mycelia (stable-ID citations like `ADR-NNNN`, `T\d+`, `P\d+` that must
+  carry descriptive text, not a bare ID). It emits **0 findings** today, so it was not urgent, but
+  it *is* the one deferred link layer mycelia relies on, and a cutover that dropped it would silently
+  lose a real gate. Shipped config-driven (the ID shapes are `[descriptive-anchor] patterns`
+  regexes), not as a hardcoded rule, and inert until configured.
 - **D2 — are the default token caps sane? Yes, keep them.** Guidance cap **4000** is comfortable:
   the largest real guidance file (`CLAUDE.md`) is **2269** tokens, and **0** of mycelia's guidance
   files exceed it. General-markdown cap **8000** fires on **8 of 402** `.md` files — all genuinely

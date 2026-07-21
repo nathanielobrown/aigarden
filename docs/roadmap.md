@@ -13,13 +13,11 @@ Gates that exist today as one-off, hardcoded checks — worth porting only once 
 - **Numbered-section citations** — a `§N` (or configurable pattern) in source must match a numbered heading in a specific design doc. Generalize to a config triple `(citation_pattern, doc_path, source_glob)` rather than hardcoding one doc and one source tree
 - **Diagram-tree integrity** — a directory of diagrams as a zoom hierarchy crossed with named axes: axis-tag filenames, no dangling drill-down links, no orphan sub-diagrams. Highly domain-shaped; port only if a second repo wants it
 - **Status-header contracts** — issues/plans whose lifecycle state lives in a `**Status:**` header (never in the folder), with a vocabulary check and a "terminal-status files are frozen" exemption that some link rules honor. **The single biggest parity gap** (see [mycelia-parity.md](mycelia-parity.md)): a terminal-status doc may legitimately cite old, now-gone paths as historical record, so the bare-path/link-case/anchor rules must skip it. Without this, the mycelia shadow-run's entire residual — 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) docs, zero live — is noise
-- **Descriptive-anchor citations** — a stable-ID link (`ADR-NNNN`, `T\d+`, `P\d+`) used as a sentence's subject must carry descriptive text, not a bare ID. Config-driven `[descriptive-anchor] patterns = [...]` (the shapes are repo-specific). Load-bearing for mycelia — it guards a 1189-link surface — but currently 0 findings, so it is the one deferred link layer to build before a cutover, not an urgent fix
 
-## Per-rule and gitignored-candidate excludes
+## Gitignored-candidate skipping
 
-Two exclusion gaps the mycelia shadow-run exposed (see [mycelia-parity.md](mycelia-parity.md)):
+An exclusion gap the mycelia shadow-run exposed (see [mycelia-parity.md](mycelia-parity.md)). Per-path, per-rule scoping itself has shipped — the [`[[overrides]]`](design.md#per-path-overrides) mechanism covers the fixture-exemption case that caused the run's 47 `code-doc-ref` false positives:
 
-- **Per-rule excludes** — the global `[exclude].paths` skips a file from *every* rule and the walk. But mycelia exempts specific fixture-bearing files — its link-linter source and its test fixtures — from `code-doc-ref` *only* — they hold intentionally-fake doc paths, yet must still be length-checked. A global exclude drops them from `file-length` too. Add an optional per-rule `exclude` (e.g. `[code-doc-ref] exclude = [...]`) layered on top of the global set. This caused all 34+ `code-doc-ref` false positives in the run
 - **Gitignored-candidate skipping** — `bare-path` (and `code-doc-ref`) should skip a *candidate target* that is gitignored, not just a gitignored *containing file*. A backticked reference to a generated, gitignored file (e.g. an eval run's results report) exists locally but not on a fresh checkout, so flagging it diverges local from CI. The `ignore` crate the walker already uses can match candidate paths against the gitignore stack
 
 ## Token/char budgets inside code files

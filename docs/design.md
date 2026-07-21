@@ -58,17 +58,21 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 - `cog-fresh` — every generated cog block matches what its generator would produce now (see [Cogs](#cogs))
 
+**Link readability:**
+
+- `descriptive-anchor` — a stable-ID link whose *whole visible text* is a bare ID reads badly when the link is a sentence's subject ("as [ADR-0026] argues" assumes the reader already knows 0026). The rule wants descriptive anchor text; the ID stays in the link target. Fully config-driven and generic: the ID shapes are regexes in `[descriptive-anchor] patterns`, so nothing is project-specific, and with no patterns the rule is **inert** (safe to leave on). A parenthetical citation — `(see [ADR-0026])` — reads as an aside, not a subject, and is never flagged; the whole-text match means `[ADR-0026 — gated publication]` is already descriptive and never flagged
+
 Mycelia-specific gates (diagram-tree axis tags, `§N` design-doc refs, tracker status headers) are deliberately **not** in v1 — see [roadmap.md](roadmap.md).
 
 ## Config model
 
-`ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable, per-rule tables for thresholds and excludes. The walker already honors `.gitignore`; config `exclude` adds tool-level exclusions **defined once** and shared by every rule and by `mv` — the single home for what used to be a fixtures-exemption reimplemented in three separate tools.
+`ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable via its own table, per-rule tables for thresholds. The walker already honors `.gitignore`; config `exclude` adds tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools.
 
 ```toml
 # ailint.toml — everything on by default; override only what you need.
 
 [exclude]
-paths = ["**/fixtures/**", ".claude/worktrees/**"]  # skipped by every rule and by `mv`
+paths = ["**/fixtures/**", ".claude/worktrees/**"]  # dropped from the walk entirely
 
 # file-length: one budget group per file category, each with its own metric.
 [[file-length.budget]]
@@ -85,9 +89,36 @@ enabled = true      # every rule can be switched off the same way
 
 [markdown-style]
 reflow = true       # rumdl rules surface under ailint keys
+
+# descriptive-anchor: inert until you declare the stable-ID shapes (regexes).
+[descriptive-anchor]
+patterns = ["ADR-\\d+", "T\\d+", "P\\d+"]
 ```
 
 Unknown keys are rejected (a typo fails loudly at startup, never a silent no-op). `file-length` budgets resolve **user-first, then built-in defaults, first matching glob wins** — a user entry both overrides a default glob and extends coverage to new globs without re-listing the defaults. The built-in defaults live in `config.rs` (generic, no repo-specific globs): guidance files (`{CLAUDE,AGENTS,GEMINI,SKILL}.md`) and markdown budget tokens, source files budget lines; the cap is inclusive (`value > max` is a finding).
+
+### Per-path overrides
+
+`exclude` decides which files are *walked at all*; **overrides** decide how a rule behaves on a subset of the walked files. There is one mechanism, ruff/ESLint-style, and no separate per-rule `exclude` key — disabling a rule for a glob *is* how you exempt those files from it:
+
+```toml
+# The docstrings, test fixtures, and snapshots here cite example doc paths on
+# purpose. Turn off code-doc-ref for them — every other rule still sees them.
+[[overrides]]
+files = ["tests/**", "src/references.rs"]
+[overrides.code-doc-ref]
+enabled = false
+
+# Vendored code: no length budget, and no bare-path checking.
+[[overrides]]
+files = ["vendor/**"]
+[overrides.file-length]
+use-defaults = false
+[overrides.bare-path]
+enabled = false
+```
+
+**Precedence** matches ruff exactly: **base config < overrides, in declaration order (later wins)**. A file's effective setting for a rule starts at the base table, then every `[[overrides]]` block whose `files` glob matches replaces that rule's table — so the *last* matching override wins, and any override beats the base. An override **replaces a whole rule table**, it does not merge fields: `[overrides.file-length]` with no budgets and `use-defaults = false` gives matched files *zero* budgets, regardless of the base budgets. Only the rule tables an override actually names are affected; unlisted rules keep their base settings. A [`Resolver`](../src/config.rs) applies this precedence in one place, and every rule reads a file's effective config through it, so the rule bodies never re-implement path scoping.
 
 ## Cogs
 
