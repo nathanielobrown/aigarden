@@ -206,6 +206,35 @@ fn bare_path_flags_a_missing_backticked_path() {
 }
 
 #[test]
+fn bare_path_skips_a_gitignored_candidate() {
+    let dir = tempfile::tempdir().unwrap();
+    // A backticked path pointing at a generated, gitignored file: it exists locally
+    // for the author but not on a fresh checkout, so flagging it would diverge local
+    // from CI. A gitignored candidate is an environment artifact — not a finding.
+    write(dir.path(), ".gitignore", "build/\n");
+    write(
+        dir.path(),
+        "doc.md",
+        "The bundle lands at `build/out.js` after a run.\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
+fn code_doc_ref_skips_a_gitignored_candidate() {
+    let dir = tempfile::tempdir().unwrap();
+    // Same environment-artifact rule for a doc path cited in source: a reference to a
+    // gitignored, generated doc is skipped rather than flagged as missing.
+    write(dir.path(), ".gitignore", "docs/generated/\n");
+    write(
+        dir.path(),
+        "src/main.rs",
+        "// see docs/generated/api.md for the emitted contract\nfn main() {}\n",
+    );
+    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+}
+
+#[test]
 fn import_target_flags_a_broken_at_import() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "CLAUDE.md", "@docs/missing.md\n");

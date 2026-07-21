@@ -9,6 +9,8 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use ignore::gitignore::Gitignore;
+
 /// A target worth checking on disk: a local relative path, not an external URL,
 /// absolute path, `mailto:`, protocol-relative link, or pure anchor.
 #[must_use]
@@ -83,6 +85,20 @@ pub(crate) fn case_exact(path: &Path) -> bool {
         }
     }
     true
+}
+
+/// Whether `abs_candidate` (an absolute path expected under `root`) is gitignored,
+/// checking the path and every parent so an ignored directory covers its contents.
+/// A reference target that resolves here is an environment artifact a rule skips.
+/// A path outside `root` can't be root-relative-gitignored, so it returns false.
+#[must_use]
+pub(crate) fn is_gitignored(gitignore: &Gitignore, root: &Path, abs_candidate: &Path) -> bool {
+    let Ok(rel) = abs_candidate.strip_prefix(root) else {
+        return false;
+    };
+    gitignore
+        .matched_path_or_any_parents(rel, /* is_dir */ false)
+        .is_ignore()
 }
 
 /// A forward-slashed relative path from `from_dir` to `to`, both absolute. Used

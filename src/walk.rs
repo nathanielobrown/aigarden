@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 /// One walked file: its display path, absolute path, and full text.
 pub(crate) struct SourceFile {
@@ -69,6 +70,19 @@ fn display_path(abs: &Path, cwd: &Path) -> String {
     let rel = abs.strip_prefix(cwd).unwrap_or(abs);
     let slashed = rel.to_string_lossy().replace('\\', "/");
     slashed.strip_prefix("./").unwrap_or(&slashed).to_string()
+}
+
+/// A gitignore matcher built from `root`'s top-level `.gitignore` (empty if none).
+/// Used by reference rules to skip a *candidate target* that resolves to a
+/// gitignored path — a generated environment artifact present locally but absent
+/// on a fresh checkout, so flagging it would diverge local from CI (design.md).
+/// Nested `.gitignore` files below the root are not consulted (v1 scope).
+pub(crate) fn root_gitignore(root: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(root);
+    // A missing `.gitignore` is fine: `add` returns an io error we ignore, and the
+    // built matcher then ignores nothing.
+    let _ = builder.add(root.join(".gitignore"));
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
 }
 
 /// Compile `patterns` into a globset matched against repo-relative paths. Shared

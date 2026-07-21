@@ -10,7 +10,8 @@
 use crate::diagnostic::{Diagnostic, Span};
 use crate::references::{RefKind, extract, is_markdown};
 use crate::rules::resolve::{
-    case_exact, is_checkable_local, resolve_existing, resolve_from_file, resolve_from_root,
+    case_exact, is_checkable_local, is_gitignored, resolve_existing, resolve_from_file,
+    resolve_from_root,
 };
 use crate::rules::{Rule, RuleContext};
 use crate::walk::SourceFile;
@@ -135,6 +136,7 @@ impl Rule for BarePath {
         "a backticked file-shaped path in markdown prose exists"
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let gitignore = crate::walk::root_gitignore(ctx.root);
         let mut diagnostics = Vec::new();
         for file in ctx
             .files
@@ -150,6 +152,13 @@ impl Rule for BarePath {
                 };
                 let from_file = resolve_from_file(&file.abs_path, path);
                 let from_root = resolve_from_root(ctx.root, path);
+                // A candidate resolving to a gitignored path is an environment
+                // artifact (generated locally, absent on a fresh checkout) — skip it.
+                if is_gitignored(&gitignore, ctx.root, &from_file)
+                    || is_gitignored(&gitignore, ctx.root, &from_root)
+                {
+                    continue;
+                }
                 if resolve_existing(&from_file).is_none() && resolve_existing(&from_root).is_none()
                 {
                     diagnostics.push(finding(
@@ -220,6 +229,7 @@ impl Rule for CodeDocRef {
         "a doc path cited inside a non-markdown source file exists"
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let gitignore = crate::walk::root_gitignore(ctx.root);
         let mut diagnostics = Vec::new();
         for file in ctx
             .files
@@ -234,6 +244,11 @@ impl Rule for CodeDocRef {
                     continue;
                 };
                 let resolved = resolve_from_root(ctx.root, path);
+                // Skip a candidate resolving to a gitignored path (environment
+                // artifact) — the same rule bare-path applies.
+                if is_gitignored(&gitignore, ctx.root, &resolved) {
+                    continue;
+                }
                 if resolve_existing(&resolved).is_none() {
                     diagnostics.push(finding(
                         self.name(),

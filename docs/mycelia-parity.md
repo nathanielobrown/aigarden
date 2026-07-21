@@ -7,20 +7,20 @@ fixed, what is a deferred gap, and what is a deliberate non-goal. Read it to dec
 
 ## Verdict
 
-**At parity on the shared surface, with two named deferred gaps** — neither blocking for a
-non-frozen-history repo, the high-severity one blocking for mycelia specifically. After the in-scope fixes below,
-ailint's entire residual over mycelia is **193 findings from one unbuilt feature** (frozen-history
-exemption) plus **1 from a second** (gitignored-candidate skipping). Two gaps this run named — the
-`code-doc-ref` fixture exemption and the `descriptive-anchor` rule — have since **shipped** (see
-[Gaps closed since the run](#gaps-closed-since-the-run)). Zero misses and zero grammar-level false
-positives remain.
+**At parity on the shared surface, with one named deferred gap** — the high-severity
+frozen-history exemption, blocking for mycelia specifically but not for a non-frozen-history repo.
+After the in-scope fixes below, ailint's entire residual over mycelia is **193 findings from one
+unbuilt feature** (frozen-history exemption). Three gaps this run named — the `code-doc-ref` fixture
+exemption, the `descriptive-anchor` rule, and gitignored-candidate skipping — have since **shipped**
+(see [Gaps closed since the run](#gaps-closed-since-the-run)). Zero misses and zero grammar-level
+false positives remain.
 
 | Category | Before fixes | After fixes | Where it went |
 |---|---:|---:|---|
 | 1 — ailint miss (mycelia finds, ailint doesn't) | 0 observable | 0 observable | mycelia's suite is green on this tree, so misses can't surface here (see Method) |
 | 2 — ailint extra / **win** (genuine, mycelia can't see) | 1 | 1 | `backend/scripts/…` length scope-gap — kept |
 | 3 — ailint false positive | 515 | 0 | ~101 grammar FPs fixed in code; 192 `code-doc-ref` + 6 `reports` suppressed by tuned config |
-| 4 — deferred feature (not a non-goal, just unbuilt) | — | 194 | 193 frozen-history + 1 gitignored-candidate → [roadmap.md](roadmap.md) |
+| 4 — deferred feature (not a non-goal, just unbuilt) | — | 193 | 193 frozen-history → [roadmap.md](roadmap.md) (gitignored-candidate has since shipped) |
 
 ## Method
 
@@ -83,11 +83,15 @@ shipped as [`[[overrides]]`](design.md#per-path-overrides), so the tuned config 
 | Gap | Sev | Findings on mycelia | Tracking |
 |---|---|---:|---|
 | Frozen-history / status-header exemption | **High** | 193 | [Status-header contracts](roadmap.md#generalized-versions-of-single-repo-gates) |
-| Gitignored-candidate skipping | Low | 1 | [roadmap.md](roadmap.md#gitignored-candidate-skipping) |
 
 ### Gaps closed since the run
 
-Two gaps this run named have shipped:
+Three gaps this run named have shipped:
+
+- **Gitignored-candidate skipping (was Low, 1 finding)** — `bare-path` and `code-doc-ref` now skip a
+  *candidate target* that resolves to a gitignored path (an environment artifact present locally but
+  absent on a fresh checkout), via the `ignore` crate the walker already uses. Closes the run's last
+  residual false positive
 
 - **Per-rule scoping (was Med, 192 findings masked by a workaround)** — shipped as
   [`[[overrides]]`](design.md#per-path-overrides): a glob-scoped, ruff-style mechanism where an

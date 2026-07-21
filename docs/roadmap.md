@@ -14,12 +14,6 @@ Gates that exist today as one-off, hardcoded checks — worth porting only once 
 - **Diagram-tree integrity** — a directory of diagrams as a zoom hierarchy crossed with named axes: axis-tag filenames, no dangling drill-down links, no orphan sub-diagrams. Highly domain-shaped; port only if a second repo wants it
 - **Status-header contracts** — issues/plans whose lifecycle state lives in a `**Status:**` header (never in the folder), with a vocabulary check and a "terminal-status files are frozen" exemption that some link rules honor. **The single biggest parity gap** (see [mycelia-parity.md](mycelia-parity.md)): a terminal-status doc may legitimately cite old, now-gone paths as historical record, so the bare-path/link-case/anchor rules must skip it. Without this, the mycelia shadow-run's entire residual — 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) docs, zero live — is noise
 
-## Gitignored-candidate skipping
-
-An exclusion gap the mycelia shadow-run exposed (see [mycelia-parity.md](mycelia-parity.md)). Per-path, per-rule scoping itself has shipped — the [`[[overrides]]`](design.md#per-path-overrides) mechanism covers the fixture-exemption case that caused the run's 47 `code-doc-ref` false positives:
-
-- **Gitignored-candidate skipping** — `bare-path` (and `code-doc-ref`) should skip a *candidate target* that is gitignored, not just a gitignored *containing file*. A backticked reference to a generated, gitignored file (e.g. an eval run's results report) exists locally but not on a fresh checkout, so flagging it diverges local from CI. The `ignore` crate the walker already uses can match candidate paths against the gitignore stack
-
 ## Token/char budgets inside code files
 
 v1 budgets whole files. A finer rule: budget the **doc content within** a code file — a module or function docstring, or the running total of comment prose — in tokens, so an always-loaded source file can't bloat its guidance without tripping a gate. Extends the chars/tokens metric from file-level to span-level.
