@@ -19,7 +19,7 @@ flowchart TD
     check_cmd --> rule_engine[rule_engine<br>run every layer, report all]
     reference_extraction --> rule_engine
     rule_engine --> own_rules[own_rules<br>file-length, link layers, cog-fresh]
-    rule_engine --> rumdl_lib[rumdl_lib<br>MD051 anchors + MD057 relative links]
+    rule_engine --> rumdl_lib[rumdl_lib<br>MD051 anchors + curated style rules]
 
     cog_cmd --> cog_engine[cog_engine<br>file-tree, first-sentences, index, embedded shell]
     mv_cmd --> reference_extraction
@@ -39,7 +39,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 **Reference integrity** — the six layers of the link gate, run together and all reported:
 
-- `link-target` — a relative markdown link points at a file that exists on disk (via `rumdl_lib` MD057); extensionless wiki-style links try `.md`
+- `link-target` — a relative markdown link points at a file that exists on disk; extensionless wiki-style links try `.md`. Own-implemented on the shared reference-extraction core (native byte spans for `mv`), not `rumdl_lib` MD057 — MD057 duplicates existence-checking the core already does and gives no span the extractor lacks
 - `anchor-resolves` — a `#fragment`, in-file or `other.md#section`, resolves to an actual heading, honoring GitHub anchor-slug rules (via `rumdl_lib` MD051)
 - `import-target` — an `@path` import in an always-loaded file (`CLAUDE.md`, `AGENTS.md`, `SKILL.md`) resolves on disk. These fail *silently* at runtime, so nothing else catches a broken one
 - `bare-path` — a backticked, file-shaped path in markdown prose (interior slash, real-looking extension) exists relative to the file or repo root; git-ignored candidates are skipped as environment artifacts
@@ -52,7 +52,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 **Markdown style:**
 
-- `markdown-style` — reflow and style rules from `rumdl_lib`, surfaced under ailint's own config and diagnostics. Repos drop `.rumdl.toml`: one tool, one config
+- `markdown-style` — a curated, auto-fixable slice of `rumdl_lib`'s style rules (trailing spaces, hard tabs, multiple blank lines, single trailing newline), surfaced under ailint's own config and diagnostics — repos drop `.rumdl.toml`: one tool, one config. `reflow` (MD013 paragraph re-wrapping) is opt-in. `ailint check --fix` applies the fixes on disk and re-reports the residue, so a second `--fix` run is a clean no-op
 
 **Generated freshness:**
 
