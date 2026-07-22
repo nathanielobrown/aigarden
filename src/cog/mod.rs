@@ -5,9 +5,9 @@
 //! A cog block is an HTML-comment marker pair delimiting a machine-owned region:
 //!
 //! ```text
-//! <!-- ailint:cog file-tree src -->
+//! <!-- aigarden:cog file-tree src -->
 //! …generated body, recomputed on every run…
-//! <!-- ailint:end -->
+//! <!-- aigarden:end -->
 //! ```
 //!
 //! The markers are HTML comments so they vanish in rendered markdown. The open
@@ -51,14 +51,14 @@ pub(crate) struct CogFinding {
 
 /// Whether a finding is a stale body or a generator failure. `--check` treats a
 /// failure as a tool error (exit 2); the `cog-fresh` rule treats both as findings
-/// so `ailint check` never aborts on one bad generator.
+/// so `aigarden check` never aborts on one bad generator.
 #[derive(PartialEq, Eq)]
 pub(crate) enum FindingKind {
     Stale,
     Failed,
 }
 
-/// `ailint cog --check`: gate every markdown file's cog blocks. A failing
+/// `aigarden cog --check`: gate every markdown file's cog blocks. A failing
 /// generator is a tool error (exit 2, loud on stderr); a stale block is a
 /// `cog-fresh` diagnostic (exit 1); a fresh repo is quiet (exit 0).
 pub(crate) fn check_repo(
@@ -94,7 +94,7 @@ pub(crate) fn check_repo(
     })
 }
 
-/// `ailint cog --write`: regenerate every markdown file's cog blocks in place,
+/// `aigarden cog --write`: regenerate every markdown file's cog blocks in place,
 /// reporting which files changed. A failing generator aborts (exit 2) — a write
 /// must be correct or not happen.
 pub(crate) fn write_repo(
@@ -140,7 +140,7 @@ pub(crate) fn evaluate(content: &str, file_abs: &Path, repo_root: &Path) -> Vec<
                     findings.push(CogFinding {
                         open_marker_span: block.open_marker_span.clone(),
                         message: format!(
-                            "cog block `{}` is out of date \u{2014} run `ailint cog --write`",
+                            "cog block `{}` is out of date \u{2014} run `aigarden cog --write`",
                             block.generator
                         ),
                         kind: FindingKind::Stale,
@@ -257,7 +257,7 @@ fn find_blocks(content: &str) -> Result<Vec<CogBlock>> {
         }
     }
     if open.is_some() {
-        bail!("unterminated cog block (missing `<!-- ailint:end -->`)");
+        bail!("unterminated cog block (missing `<!-- aigarden:end -->`)");
     }
     Ok(blocks)
 }
@@ -265,8 +265,8 @@ fn find_blocks(content: &str) -> Result<Vec<CogBlock>> {
 /// Parse an open marker line into `(generator, args)`, or `None` if it is not one.
 fn parse_open_marker(trimmed: &str) -> Option<(String, String)> {
     let inner = trimmed.strip_prefix("<!--")?.strip_suffix("-->")?.trim();
-    let rest = inner.strip_prefix("ailint:cog")?;
-    // Require a boundary so `ailint:cogfoo` is not a marker.
+    let rest = inner.strip_prefix("aigarden:cog")?;
+    // Require a boundary so `aigarden:cogfoo` is not a marker.
     if !rest.starts_with(char::is_whitespace) {
         return None;
     }
@@ -281,13 +281,13 @@ fn parse_open_marker(trimmed: &str) -> Option<(String, String)> {
     Some((generator, args))
 }
 
-/// Whether a line is the `<!-- ailint:end -->` close marker.
+/// Whether a line is the `<!-- aigarden:end -->` close marker.
 fn is_end_marker(trimmed: &str) -> bool {
     trimmed
         .strip_prefix("<!--")
         .and_then(|s| s.strip_suffix("-->"))
         .map(str::trim)
-        == Some("ailint:end")
+        == Some("aigarden:end")
 }
 
 #[cfg(test)]
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn finds_a_block_and_its_body_span() {
         let content =
-            "before\n<!-- ailint:cog sh \"echo x\" -->\nold body\n<!-- ailint:end -->\nafter\n";
+            "before\n<!-- aigarden:cog sh \"echo x\" -->\nold body\n<!-- aigarden:end -->\nafter\n";
         let blocks = find_blocks(content).unwrap();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].generator, "sh");
@@ -307,25 +307,25 @@ mod tests {
         // The open marker span slices back to the marker line.
         assert_eq!(
             &content[blocks[0].open_marker_span.clone()],
-            "<!-- ailint:cog sh \"echo x\" -->"
+            "<!-- aigarden:cog sh \"echo x\" -->"
         );
     }
 
     #[test]
     fn markers_inside_a_fence_are_examples_not_blocks() {
-        let content = "```\n<!-- ailint:cog file-tree src -->\nx\n<!-- ailint:end -->\n```\n";
+        let content = "```\n<!-- aigarden:cog file-tree src -->\nx\n<!-- aigarden:end -->\n```\n";
         assert!(find_blocks(content).unwrap().is_empty());
     }
 
     #[test]
     fn an_unterminated_block_fails_loudly() {
-        let content = "<!-- ailint:cog index docs/*.md -->\nbody without end\n";
+        let content = "<!-- aigarden:cog index docs/*.md -->\nbody without end\n";
         assert!(find_blocks(content).is_err());
     }
 
     #[test]
     fn empty_body_between_adjacent_markers_is_valid() {
-        let content = "<!-- ailint:cog sh \"true\" -->\n<!-- ailint:end -->\n";
+        let content = "<!-- aigarden:cog sh \"true\" -->\n<!-- aigarden:end -->\n";
         let blocks = find_blocks(content).unwrap();
         assert_eq!(blocks.len(), 1);
         assert_eq!(&content[blocks[0].body_span.clone()], "");

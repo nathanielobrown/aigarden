@@ -2,9 +2,9 @@
 source: tests/cli.rs
 expression: "fs::read_to_string(dir.path().join(\"doc.md\")).unwrap()"
 ---
-<!-- ailint:cog file-tree src -->
+<!-- aigarden:cog file-tree src -->
 a.rs
 c.rs
 nested/
   b.rs
-<!-- ailint:end -->
+<!-- aigarden:end -->

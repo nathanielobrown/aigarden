@@ -1,4 +1,4 @@
-//! `ailint mv <src> <dst>`: move a file and rewrite every reference to it, then
+//! `aigarden mv <src> <dst>`: move a file and rewrite every reference to it, then
 //! verify the repository is still clean.
 //!
 //! The rewrite reads from the same [`crate::references`] extraction core the link
@@ -55,7 +55,7 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
         bail!("source `{src}` does not exist");
     }
     if src_abs.is_dir() {
-        bail!("`{src}` is a directory; `ailint mv` moves files only (for now)");
+        bail!("`{src}` is a directory; `aigarden mv` moves files only (for now)");
     }
     let dst_abs = destination(&cwd, &src_abs, dst);
     if dst_abs.exists() {
@@ -249,7 +249,7 @@ fn rewrite_references(
             .with_context(|| format!("writing rewritten {}", file.rel_path))?;
         // Stage exactly this rewrite when the move went through git, so the whole
         // change (rename + every referencing edit) is one staged changeset. Only
-        // the file ailint just wrote is staged — never anything else in the tree.
+        // the file aigarden just wrote is staged — never anything else in the tree.
         if git_move {
             git_add(&file.abs_path)?;
         }

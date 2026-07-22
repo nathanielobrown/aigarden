@@ -1,6 +1,6 @@
 # Working guide for AI agents
 
-`ailint` is a Rust CLI that lints and maintains repositories for AI-agent + human collaboration: link/reference integrity, context-size budgets, and generated-content freshness. See `docs/design.md` for the architecture and rule catalog, `docs/roadmap.md` for what is deliberately out of v1.
+`aigarden` is a Rust CLI that lints and maintains repositories for AI-agent + human collaboration: link/reference integrity, context-size budgets, and generated-content freshness. See `docs/design.md` for the architecture and rule catalog, `docs/roadmap.md` for what is deliberately out of v1.
 
 This is an early, single-user, pre-1.0 project — make the clean breaking change, skip compat shims.
 

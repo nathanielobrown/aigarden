@@ -1,4 +1,4 @@
-//! End-to-end snapshots and assertions for `ailint mv`: reference rewrites, the
+//! End-to-end snapshots and assertions for `aigarden mv`: reference rewrites, the
 //! re-anchor of the moved file's own links, and the git staging of the whole move.
 
 use std::fs;
@@ -8,7 +8,7 @@ use std::process::Command;
 use insta_cmd::assert_cmd_snapshot;
 
 mod common;
-use common::{ailint, write};
+use common::{aigarden, write};
 
 /// Run `git <args>` in `dir`, asserting success.
 fn git(dir: &Path, args: &[&str]) {
@@ -43,7 +43,7 @@ fn mv_rewrites_references_across_the_repo() {
         "See [the guide](../guide.md).\n",
     );
     // Move the guide into docs/; the referrer's link must repoint.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "guide.md", "docs/guide.md"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["mv", "guide.md", "docs/guide.md"]));
     insta::assert_snapshot!(
         "mv_rewrites_referrer",
         fs::read_to_string(dir.path().join("docs/readme.md")).unwrap()
@@ -56,7 +56,7 @@ fn mv_reanchors_the_moved_files_own_links() {
     write(dir.path(), "sibling.md", "# Sibling\n");
     write(dir.path(), "doc.md", "Link to [sib](sibling.md).\n");
     // Moving doc.md into sub/ must re-anchor its own outbound link.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "doc.md", "sub/doc.md"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["mv", "doc.md", "sub/doc.md"]));
     insta::assert_snapshot!(
         "mv_reanchored_moved_file",
         fs::read_to_string(dir.path().join("sub/doc.md")).unwrap()
@@ -68,7 +68,7 @@ fn mv_into_a_directory_uses_the_source_filename() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "notes.md", "# Notes\n");
     // A trailing-slash destination is a directory to move into.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "notes.md", "archive/"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["mv", "notes.md", "archive/"]));
     assert!(dir.path().join("archive/notes.md").exists());
 }
 
@@ -77,7 +77,7 @@ fn mv_refuses_when_the_destination_exists() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "a.md", "# A\n");
     write(dir.path(), "b.md", "# B\n");
-    assert_cmd_snapshot!(ailint(dir.path()).args(["mv", "a.md", "b.md"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["mv", "a.md", "b.md"]));
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn mv_rewrites_both_a_file_relative_link_and_a_root_relative_bare_path() {
         "plans/phase.md",
         "See the storage map at [map](../docs/persistence.md) — root form `docs/persistence.md`.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).args([
+    assert_cmd_snapshot!(aigarden(dir.path()).args([
         "mv",
         "docs/persistence.md",
         "docs/storage/persistence.md"
@@ -122,10 +122,10 @@ fn mv_stages_the_rename_and_its_rewrites_but_not_unrelated_changes() {
     write(root, "unrelated.md", "# Unrelated\noriginal line\n");
     git(root, &["add", "-A"]);
     git(root, &["commit", "-qm", "base"]);
-    // A dirty, UNSTAGED local edit ailint must not sweep into the move.
+    // A dirty, UNSTAGED local edit aigarden must not sweep into the move.
     write(root, "unrelated.md", "# Unrelated\nlocally edited\n");
 
-    let out = ailint(root)
+    let out = aigarden(root)
         .args(["mv", "guide.md", "docs/guide.md"])
         .output()
         .unwrap();

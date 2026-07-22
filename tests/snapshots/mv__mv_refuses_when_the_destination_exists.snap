@@ -1,7 +1,7 @@
 ---
 source: tests/mv.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - mv
     - a.md
@@ -12,4 +12,4 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: destination `b.md` already exists
+aigarden: destination `b.md` already exists

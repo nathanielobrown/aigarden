@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -18,6 +18,6 @@ error[anchor-resolves]: Link fragment 'missing' not found in 'guide.md'
   |
 1 | See [x](guide.md#missing) and [y](#nope).
   |     ^^^^^^^^^^^^^^^^
-ailint: 2 findings
+aigarden: 2 findings
 
 ----- stderr -----

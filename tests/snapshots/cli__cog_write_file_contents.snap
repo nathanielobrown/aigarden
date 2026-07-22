@@ -4,6 +4,6 @@ expression: written
 ---
 # Doc
 
-<!-- ailint:cog sh "echo hello" -->
+<!-- aigarden:cog sh "echo hello" -->
 hello
-<!-- ailint:end -->
+<!-- aigarden:end -->

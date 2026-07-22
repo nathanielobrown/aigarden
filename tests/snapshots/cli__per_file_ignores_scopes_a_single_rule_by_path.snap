@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -9,7 +9,7 @@ success: false
 exit_code: 1
 ----- stdout -----
 grammar.rs: [file-length] 2 lines exceeds the budget of 1 for `**/*.rs`
-  help: split the file or raise the `**/*.rs` budget in ailint.toml
-ailint: 1 finding
+  help: split the file or raise the `**/*.rs` budget in aigarden.toml
+aigarden: 1 finding
 
 ----- stderr -----

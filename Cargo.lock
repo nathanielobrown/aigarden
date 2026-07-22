@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ailint"
+name = "aigarden"
 version = "0.0.0"
 dependencies = [
  "annotate-snippets",

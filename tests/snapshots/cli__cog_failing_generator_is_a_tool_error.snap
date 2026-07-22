@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - cog
     - "--check"
@@ -11,4 +11,4 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: doc.md: cog generator `sh` failed: cog shell command `exit 3` exited with exit status: 3
+aigarden: doc.md: cog generator `sh` failed: cog shell command `exit 3` exited with exit status: 3

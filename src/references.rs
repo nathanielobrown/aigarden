@@ -37,7 +37,7 @@ pub struct Reference {
     pub target_span: Range<usize>,
 }
 
-/// The reference grammars ailint recognizes.
+/// The reference grammars aigarden recognizes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefKind {
     /// A markdown inline or reference-definition link `[text](target)`.

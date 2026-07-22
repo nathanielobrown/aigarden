@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -18,6 +18,6 @@ error[markdown-style]: [MD047] File should end with a single newline character
   |
 4 | last
   |     ^
-ailint: 2 findings
+aigarden: 2 findings
 
 ----- stderr -----

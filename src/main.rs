@@ -5,6 +5,6 @@ use std::process::ExitCode;
 use clap::Parser;
 
 fn main() -> ExitCode {
-    let cli = ailint::Cli::parse();
-    ailint::run(&cli)
+    let cli = aigarden::Cli::parse();
+    aigarden::run(&cli)
 }

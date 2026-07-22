@@ -7,12 +7,12 @@ use std::fs;
 use insta_cmd::assert_cmd_snapshot;
 
 mod common;
-use common::{ailint, write};
+use common::{aigarden, write};
 
 #[test]
 fn rules_lists_the_registered_rules() {
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).arg("rules"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("rules"));
 }
 
 #[test]
@@ -20,7 +20,7 @@ fn explain_prints_a_rules_full_contract() {
     // A fixable rule's contract: what it checks, its config keys with defaults, an
     // example finding, and what `--fix` does — all sourced from the rule itself.
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "markdown-style"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "markdown-style"]));
 }
 
 #[test]
@@ -28,21 +28,21 @@ fn explain_covers_a_config_gated_rule() {
     // descriptive-anchor is on by default but inert until `patterns` is set — its
     // config-gated status and its `patterns` key must both surface.
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "descriptive-anchor"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "descriptive-anchor"]));
 }
 
 #[test]
 fn explain_on_an_unknown_rule_is_a_clean_error_not_a_panic() {
     // A bad rule name is a tool error (exit 2) naming the known rules, never a panic.
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "no-such-rule"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "no-such-rule"]));
 }
 
 #[test]
 fn check_clean_repo_is_quiet_and_exits_zero() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "small.rs", "fn main() {}\n");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -50,21 +50,21 @@ fn check_flags_a_file_over_the_default_line_budget() {
     let dir = tempfile::tempdir().unwrap();
     // 701 lines trips the built-in 700-line code budget.
     write(dir.path(), "big.rs", &"let _x = 0;\n".repeat(701));
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
 fn check_json_output_has_the_stable_schema() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "big.rs", &"let _x = 0;\n".repeat(701));
-    assert_cmd_snapshot!(ailint(dir.path()).args(["check", "--output-format", "json"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--output-format", "json"]));
 }
 
 #[test]
 fn check_github_output_emits_workflow_annotations() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "big.rs", &"let _x = 0;\n".repeat(701));
-    assert_cmd_snapshot!(ailint(dir.path()).args(["check", "--output-format", "github"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--output-format", "github"]));
 }
 
 #[test]
@@ -74,21 +74,21 @@ fn config_can_override_a_budget_with_a_custom_glob_and_token_metric() {
     // adds it on top of the built-ins without re-listing them.
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[file-length.extend-budgets]\n\"**/*.txt\" = { tokens = 1 }\n",
     );
     write(dir.path(), "notes.txt", "abcdefgh");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
 fn unknown_config_key_fails_with_exit_two() {
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", "[nonsense]\nfoo = 1\n");
+    write(dir.path(), "aigarden.toml", "[nonsense]\nfoo = 1\n");
     write(dir.path(), "small.rs", "fn main() {}\n");
     // The error names the config path, which is a random tempdir — redact it.
-    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
-        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
     });
 }
 
@@ -100,12 +100,12 @@ fn bad_budget_glob_is_a_clean_config_error_not_a_panic() {
     // panics (exit 101). The message names the offending key and value.
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[file-length.extend-budgets]\n\"[unclosed\" = { lines = 1 }\n",
     );
     write(dir.path(), "a.rs", "fn main() {}\n");
-    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
-        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
     });
 }
 
@@ -116,19 +116,19 @@ fn bad_descriptive_anchor_pattern_is_a_clean_config_error_not_a_panic() {
     // (exit 2), not a panic from the rule's lazy `Regex::new`.
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[descriptive-anchor]\npatterns = [\"ADR-(\\\\d+\"]\n",
     );
     write(dir.path(), "doc.md", "# Doc\n\nSee [ADR-1](x.md).\n");
-    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
-        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
     });
 }
 
 #[test]
 fn no_files_found_fails_with_exit_two() {
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn fix_help_text_names_the_fixable_rule_not_a_falsehood() {
     // `markdown-style` is fixable (and `--fix` works), so the old "no rule does
     // yet" help was false. The help must name the fixable rule and drop the lie.
     let dir = tempfile::tempdir().unwrap();
-    let out = ailint(dir.path())
+    let out = aigarden(dir.path())
         .args(["check", "--help"])
         .output()
         .unwrap();
@@ -164,7 +164,7 @@ fn check_on_a_non_utf8_file_does_not_panic() {
         [b"\xff\xfe\x00".as_slice(), b"See [x](nope.md).\n"].concat(),
     )
     .unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn link_target_flags_a_broken_relative_link() {
         "doc.md",
         "See [the guide](guide.md) for details.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn valid_links_including_extensionless_and_anchor_are_clean() {
         "doc.md",
         "[a](guide.md), [b](guide), [c](#top), [d](https://example.com).\n\n# Top\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn link_case_flags_a_wrong_cased_target_that_still_exists() {
     // case-sensitive CI it 404s — link-case catches it while link-target stays quiet.
     write(dir.path(), "Guide.md", "# Guide\n");
     write(dir.path(), "doc.md", "See [the guide](guide.md).\n");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn bare_path_flags_a_missing_backticked_path() {
         "doc.md",
         "Look at `src/missing.rs` in the tree.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -226,7 +226,7 @@ fn bare_path_skips_a_gitignored_candidate() {
         "doc.md",
         "The bundle lands at `build/out.js` after a run.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -240,14 +240,14 @@ fn code_doc_ref_skips_a_gitignored_candidate() {
         "src/main.rs",
         "// see docs/generated/api.md for the emitted contract\nfn main() {}\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
 fn import_target_flags_a_broken_at_import() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "CLAUDE.md", "@docs/missing.md\n");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn guidance_files_in_hidden_dirs_are_walked() {
     // SKILL.md lives under a hidden `.claude/` tree; its broken @-import must
     // still be caught (WS1's walker skipped hidden files by default).
     write(dir.path(), ".claude/skills/x/SKILL.md", "@../missing.md\n");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -270,7 +270,7 @@ fn anchor_resolves_flags_missing_same_file_and_cross_file_fragments() {
         "doc.md",
         "See [x](guide.md#missing) and [y](#nope).\n\n# Top\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn markdown_style_flags_trailing_spaces_and_missing_final_newline() {
         "s.md",
         "# Title\n\nA line with trailing   \nlast",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -295,12 +295,12 @@ fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
         "# Title\n\nPara one.\n\n\n\nPara two with a\ttab.",
     );
     // `--fix` rewrites the file, then reports the (now empty) residue.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["check", "--fix"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--fix"]));
     // The file on disk is now canonical markdown.
     let fixed = fs::read_to_string(dir.path().join("s.md")).unwrap();
     insta::assert_snapshot!("fix_rewrites_file_contents", fixed);
     // A second plain check finds nothing — the fix was idempotent and complete.
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn per_file_ignores_scopes_a_single_rule_by_path() {
     // scoping.
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[file-length.extend-budgets]\n\"**/*.rs\" = { lines = 1 }\n\
          [per-file-ignores]\n\"grammar.rs\" = [\"code-doc-ref\"]\n",
     );
@@ -322,7 +322,7 @@ fn per_file_ignores_scopes_a_single_rule_by_path() {
         "grammar.rs",
         "// example path docs/fake.md\nfn a() {}\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -334,13 +334,13 @@ fn per_file_ignores_unions_rules_and_scopes_by_glob() {
     // link-target — its broken link is still flagged, its bad bare path is not.
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[per-file-ignores]\n\"docs/**\" = [\"bare-path\"]\n\"docs/legacy.md\" = [\"link-target\"]\n",
     );
     let body = "See [gone](missing.md) and `src/nope.rs` in the tree.\n";
     write(dir.path(), "docs/legacy.md", body);
     write(dir.path(), "docs/other.md", body);
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn code_doc_ref_flags_a_missing_doc_path_in_source() {
         "src/main.rs",
         "// rationale in docs/missing.md\nfn main() {}\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 // ── cog ──────────────────────────────────────────────────────────────────────
@@ -361,7 +361,7 @@ fn cog_requires_a_mode() {
     // Neither --check nor --write: clap rejects it (no default mode).
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "doc.md", "# Doc\n");
-    assert_cmd_snapshot!(ailint(dir.path()).arg("cog"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("cog"));
 }
 
 #[test]
@@ -371,9 +371,9 @@ fn cog_check_flags_a_stale_block() {
     write(
         dir.path(),
         "doc.md",
-        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+        "# Doc\n\n<!-- aigarden:cog sh \"echo hello\" -->\nstale\n<!-- aigarden:end -->\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
 }
 
 #[test]
@@ -382,14 +382,14 @@ fn cog_write_regenerates_then_check_is_clean() {
     write(
         dir.path(),
         "doc.md",
-        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+        "# Doc\n\n<!-- aigarden:cog sh \"echo hello\" -->\nstale\n<!-- aigarden:end -->\n",
     );
     // --write splices the fresh body and reports the changed file.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
     let written = fs::read_to_string(dir.path().join("doc.md")).unwrap();
     insta::assert_snapshot!("cog_write_file_contents", written);
     // A --check right after --write is always clean (determinism).
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
 }
 
 #[test]
@@ -398,10 +398,10 @@ fn cog_failing_generator_is_a_tool_error() {
     write(
         dir.path(),
         "doc.md",
-        "<!-- ailint:cog sh \"exit 3\" -->\n<!-- ailint:end -->\n",
+        "<!-- aigarden:cog sh \"exit 3\" -->\n<!-- aigarden:end -->\n",
     );
     // A nonzero shell exit is exit 2 (tool error), not a finding.
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--check"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
 }
 
 #[test]
@@ -413,9 +413,9 @@ fn cog_file_tree_renders_a_directory_tree() {
     write(
         dir.path(),
         "doc.md",
-        "<!-- ailint:cog file-tree src -->\n<!-- ailint:end -->\n",
+        "<!-- aigarden:cog file-tree src -->\n<!-- aigarden:end -->\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
     insta::assert_snapshot!(
         "cog_file_tree_contents",
         fs::read_to_string(dir.path().join("doc.md")).unwrap()
@@ -433,9 +433,9 @@ fn cog_first_sentences_projects_the_glossary() {
     write(
         dir.path(),
         "SHORT.md",
-        "<!-- ailint:cog first-sentences CONTEXT.md -->\n<!-- ailint:end -->\n",
+        "<!-- aigarden:cog first-sentences CONTEXT.md -->\n<!-- aigarden:end -->\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
     insta::assert_snapshot!(
         "cog_first_sentences_contents",
         fs::read_to_string(dir.path().join("SHORT.md")).unwrap()
@@ -458,9 +458,9 @@ fn cog_index_lists_matching_files_with_glosses() {
     write(
         dir.path(),
         "docs/index.md",
-        "# Index\n\n<!-- ailint:cog index docs/0*.md -->\n<!-- ailint:end -->\n",
+        "# Index\n\n<!-- aigarden:cog index docs/0*.md -->\n<!-- aigarden:end -->\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).args(["cog", "--write"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
     insta::assert_snapshot!(
         "cog_index_contents",
         fs::read_to_string(dir.path().join("docs/index.md")).unwrap()
@@ -470,13 +470,13 @@ fn cog_index_lists_matching_files_with_glosses() {
 #[test]
 fn cog_fresh_surfaces_in_a_check_run() {
     let dir = tempfile::tempdir().unwrap();
-    // A stale cog block is reported by `ailint check` via the registry.
+    // A stale cog block is reported by `aigarden check` via the registry.
     write(
         dir.path(),
         "doc.md",
-        "# Doc\n\n<!-- ailint:cog sh \"echo hello\" -->\nstale\n<!-- ailint:end -->\n",
+        "# Doc\n\n<!-- aigarden:cog sh \"echo hello\" -->\nstale\n<!-- aigarden:end -->\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 /// The `[status-header]` config a mycelia-shaped repo uses: issue/plan globs, a
@@ -496,7 +496,7 @@ fn frozen_terminal_doc_exempts_a_bare_path_a_live_doc_does_not() {
     // live (`open`) issue is still flagged. Same missing target, opposite verdicts —
     // the exemption keys off the status header, not the path.
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "issues/0001-closed.md",
@@ -507,7 +507,7 @@ fn frozen_terminal_doc_exempts_a_bare_path_a_live_doc_does_not() {
         "issues/0002-live.md",
         "# 0002: Live\n\n**Status:** open\n\nStill references `docs/gone.md`.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -516,13 +516,13 @@ fn frozen_doc_still_has_its_live_markdown_link_checked() {
     // frozen doc's *live* markdown link to a missing file is still a finding — the
     // historical-record allowance is only for backticked/cased/stable-ID citations.
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "issues/0003-closed.md",
         "# 0003: Closed\n\n**Status:** done\n\nSee [the guide](docs/gone.md).\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -530,13 +530,13 @@ fn status_header_flags_an_unrecognized_status() {
     // Fail loud, never a silent skip: a doc under the contract whose status is a
     // typo is reported (and, being non-terminal, is not treated as frozen).
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "issues/0004-typo.md",
         "# 0004: Typo\n\n**Status:** dnoe\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -544,13 +544,13 @@ fn status_header_flags_a_missing_header() {
     // A tracker doc with no status header at all is likewise reported — the index
     // and the frozen set would otherwise silently misjudge it.
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "plans/no-status.md",
         "# A plan with no status line\n\nBody only.\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -558,7 +558,7 @@ fn readme_under_a_tracker_glob_is_not_a_tracked_item() {
     // A README matched by a `files` glob is prose about the tracker, not an item —
     // it needs no status header and is never flagged.
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "ailint.toml", STATUS_HEADER_CONFIG);
+    write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "issues/README.md",
@@ -569,7 +569,7 @@ fn readme_under_a_tracker_glob_is_not_a_tracked_item() {
         "issues/0005-open.md",
         "# 0005: Live\n\n**Status:** open\n",
     );
-    assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
 #[test]
@@ -580,7 +580,7 @@ fn suppresses_naming_a_non_frozen_aware_rule_is_a_config_error() {
     let dir = tempfile::tempdir().unwrap();
     write(
         dir.path(),
-        "ailint.toml",
+        "aigarden.toml",
         "[status-header]\nfiles = [\"issues/**/*.md\"]\nterminal = [\"done\"]\nsuppresses = [\"file-length\"]\n",
     );
     write(
@@ -588,8 +588,8 @@ fn suppresses_naming_a_non_frozen_aware_rule_is_a_config_error() {
         "issues/0001.md",
         "# 0001: X\n\n**Status:** done\n",
     );
-    insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
-        assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
     });
 }
 
@@ -598,5 +598,5 @@ fn explain_covers_the_status_header_rule() {
     // The frozen-docs contract's full config surface — files, header, live,
     // terminal, suppresses — must surface through explain for a configuring repo.
     let dir = tempfile::tempdir().unwrap();
-    assert_cmd_snapshot!(ailint(dir.path()).args(["explain", "status-header"]));
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "status-header"]));
 }

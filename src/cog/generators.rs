@@ -161,7 +161,7 @@ fn index(args: &str, file_abs: &Path, repo_root: &Path) -> Result<String> {
 fn sh(args: &str, repo_root: &Path) -> Result<String> {
     let tokens = tokenize(args);
     let [command] = tokens.as_slice() else {
-        bail!("`sh` needs exactly one quoted command: <!-- ailint:cog sh \"…\" -->");
+        bail!("`sh` needs exactly one quoted command: <!-- aigarden:cog sh \"…\" -->");
     };
     let output = std::process::Command::new("sh")
         .arg("-c")

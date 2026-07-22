@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -13,6 +13,6 @@ error[code-doc-ref]: doc path `docs/missing.md` cited here does not exist
   |
 1 | // rationale in docs/missing.md
   |                 ^^^^^^^^^^^^^^^
-ailint: 1 finding
+aigarden: 1 finding
 
 ----- stderr -----

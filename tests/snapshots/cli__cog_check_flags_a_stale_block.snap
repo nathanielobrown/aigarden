@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - cog
     - "--check"
@@ -9,11 +9,11 @@ info:
 success: false
 exit_code: 1
 ----- stdout -----
-error[cog-fresh]: cog block `sh` is out of date — run `ailint cog --write`
+error[cog-fresh]: cog block `sh` is out of date — run `aigarden cog --write`
  --> doc.md:3:1
   |
-3 | <!-- ailint:cog sh "echo hello" -->
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ailint: 1 finding
+3 | <!-- aigarden:cog sh "echo hello" -->
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+aigarden: 1 finding
 
 ----- stderr -----

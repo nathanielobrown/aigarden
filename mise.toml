@@ -17,7 +17,7 @@ description = "Run the test suite"
 run = "cargo test"
 
 [tasks.dogfood]
-description = "Run ailint over its own repo (via ailint.toml)"
+description = "Run aigarden over its own repo (via aigarden.toml)"
 run = "cargo run --quiet -- check ."
 
 [tasks.check]
@@ -26,6 +26,6 @@ run = [
   "cargo fmt --check",
   "cargo clippy --all-targets -- -D warnings",
   "cargo test",
-  # Dogfood: ailint must pass its own reference/length rules on this repo.
+  # Dogfood: aigarden must pass its own reference/length rules on this repo.
   "cargo run --quiet -- check .",
 ]

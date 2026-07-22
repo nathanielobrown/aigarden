@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - explain
     - markdown-style
@@ -22,6 +22,6 @@ Example finding
   [MD009] Trailing whitespace
 
 Fix
-  `ailint check --fix` rewrites each file in place: strips trailing spaces, converts hard tabs, collapses blank-line runs, and ensures a single final newline (and reflows paragraphs when reflow = true).
+  `aigarden check --fix` rewrites each file in place: strips trailing spaces, converts hard tabs, collapses blank-line runs, and ensures a single final newline (and reflows paragraphs when reflow = true).
 
 ----- stderr -----

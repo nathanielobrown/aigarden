@@ -1,13 +1,13 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
 success: true
 exit_code: 0
 ----- stdout -----
-✓ ailint: checked 2 files, no findings
+✓ aigarden: checked 2 files, no findings
 
 ----- stderr -----

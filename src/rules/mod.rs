@@ -1,5 +1,5 @@
 //! The rule contract every lint implements, and the registry that drives both
-//! the engine and `ailint rules`.
+//! the engine and `aigarden rules`.
 //!
 //! A rule is a deep module: given a read-only snapshot of the repository
 //! ([`RuleContext`]), it returns every finding it can see. Rules decide their own
@@ -75,16 +75,16 @@ impl<'a> RuleContext<'a> {
 pub(crate) trait Rule: Sync {
     /// Stable kebab-case identifier used in config keys and diagnostics.
     fn name(&self) -> &'static str;
-    /// One-line description shown by `ailint rules`.
+    /// One-line description shown by `aigarden rules`.
     fn description(&self) -> &'static str;
-    /// The full contract `ailint explain <name>` prints. The rule owns its own
+    /// The full contract `aigarden explain <name>` prints. The rule owns its own
     /// documentation, so `explain` and the `rules` status column have one source.
     fn explain(&self) -> Explanation;
     /// Every finding this rule sees in `ctx`.
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic>;
 }
 
-/// The full, printable contract for a rule — what `ailint explain <name>` shows and
+/// The full, printable contract for a rule — what `aigarden explain <name>` shows and
 /// where the `rules` status column comes from. Held on the rule so a rule is the
 /// single definition of its own behavior.
 pub(crate) struct Explanation {
@@ -96,7 +96,7 @@ pub(crate) struct Explanation {
     pub(crate) config: &'static [ConfigKey],
     /// A representative finding message, so `explain` shows the shape of a hit.
     pub(crate) example: &'static str,
-    /// What `ailint check --fix` does for this rule, or `None` when it has no
+    /// What `aigarden check --fix` does for this rule, or `None` when it has no
     /// autofix (a finding needs a human decision).
     pub(crate) fix: Option<&'static str>,
     /// True for a rule on by default but inert until its config is supplied (only
