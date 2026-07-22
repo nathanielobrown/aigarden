@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -13,6 +13,6 @@ error[import-target]: import `@docs/missing.md` does not resolve
   |
 1 | @docs/missing.md
   |  ^^^^^^^^^^^^^^^ a broken @-import fails silently at load time
-ailint: 1 finding
+aigarden: 1 finding
 
 ----- stderr -----

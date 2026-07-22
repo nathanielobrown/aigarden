@@ -1,14 +1,14 @@
 //! The two rules backed by the `rumdl` library (see [`crate::rumdl_adapter`]):
 //! `anchor-resolves` (MD051 link-fragment resolution) and `markdown-style` (a
 //! curated, auto-fixable slice of rumdl's style checks). Both are thin: they pick
-//! a rumdl rule set, run it through the adapter, and map warnings to ailint
+//! a rumdl rule set, run it through the adapter, and map warnings to aigarden
 //! diagnostics. Nothing else in the tree touches rumdl types.
 
 use crate::diagnostic::{Diagnostic, Span};
 use crate::rules::{ConfigKey, Explanation, NO_CONFIG, Rule, RuleContext};
 use crate::rumdl_adapter::{RumdlFinding, anchor_rules, char_pos_to_byte, run, style_rules};
 
-/// Map one rumdl warning to an ailint diagnostic, converting its character
+/// Map one rumdl warning to an aigarden diagnostic, converting its character
 /// position to a byte span. `message` lets the caller reshape the raw rumdl text.
 fn to_diagnostic(rule: &'static str, finding: &RumdlFinding<'_>, message: String) -> Diagnostic {
     let warning = &finding.warning;
@@ -61,7 +61,7 @@ heading-slug long tail.",
 
 /// `markdown-style`: markdown hygiene surfaced from rumdl — trailing spaces, hard
 /// tabs, multiple blank lines, a single trailing newline, and (opt-in) paragraph
-/// reflow. All fixable via `ailint check --fix`. The originating rumdl rule id is
+/// reflow. All fixable via `aigarden check --fix`. The originating rumdl rule id is
 /// prefixed onto each message so a finding is traceable.
 pub(crate) struct MarkdownStyle;
 
@@ -85,7 +85,7 @@ it rewrites prose",
             }],
             example: "[MD009] Trailing whitespace",
             fix: Some(
-                "`ailint check --fix` rewrites each file in place: strips trailing spaces, \
+                "`aigarden check --fix` rewrites each file in place: strips trailing spaces, \
 converts hard tabs, collapses blank-line runs, and ensures a single final newline (and \
 reflows paragraphs when reflow = true).",
             ),

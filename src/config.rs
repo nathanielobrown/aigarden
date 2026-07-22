@@ -1,4 +1,4 @@
-//! `ailint.toml`: discovery, typed deserialization, and the strong defaults that
+//! `aigarden.toml`: discovery, typed deserialization, and the strong defaults that
 //! let a missing or empty file just work.
 //!
 //! Ruff-shaped, so the spellings transfer: top-level `exclude`/`extend-exclude`,
@@ -22,7 +22,7 @@ use serde::Deserialize;
 use crate::rules::descriptive_anchor::anchored_pattern;
 use crate::walk::build_glob_set;
 
-/// The whole `ailint.toml` schema. Every field defaults, so `Config::default()`
+/// The whole `aigarden.toml` schema. Every field defaults, so `Config::default()`
 /// is a fully-working configuration.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
@@ -47,7 +47,7 @@ pub struct Config {
     /// The `file-length` rule's budgets.
     #[serde(default)]
     pub file_length: FileLengthConfig,
-    /// `markdown-style`: rumdl style rules surfaced under ailint config.
+    /// `markdown-style`: rumdl style rules surfaced under aigarden config.
     #[serde(default)]
     pub markdown_style: MarkdownStyleConfig,
     /// `descriptive-anchor`: a stable-ID link must carry descriptive text.
@@ -73,9 +73,9 @@ pub struct DescriptiveAnchorConfig {
 }
 
 /// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
-/// under ailint keys, rather than exposing raw rumdl config. `reflow` maps to
+/// under aigarden keys, rather than exposing raw rumdl config. `reflow` maps to
 /// rumdl's MD013 one-paragraph-per-line normalization; the rest are rumdl's
-/// defaults, fixable via `ailint check --fix`.
+/// defaults, fixable via `aigarden check --fix`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct MarkdownStyleConfig {
@@ -169,7 +169,7 @@ impl BudgetValue {
 
 /// Flatten a validated `"glob" = { lines | tokens }` map into ordered [`Budget`]s.
 /// The map preserves document order (indexmap), so first-match order is the order
-/// the entries appear in `ailint.toml`.
+/// the entries appear in `aigarden.toml`.
 fn budgets_from_map(map: &IndexMap<String, BudgetValue>) -> Vec<Budget> {
     map.iter()
         .map(|(glob, value)| {
@@ -303,12 +303,12 @@ impl<'a> Resolver<'a> {
 /// The loaded config plus the directory it was found in (the display root).
 pub struct Loaded {
     pub config: Config,
-    /// Directory containing `ailint.toml`, or the cwd when none was found.
+    /// Directory containing `aigarden.toml`, or the cwd when none was found.
     pub root: PathBuf,
 }
 
 impl Config {
-    /// Load config: an explicit `--config` file, else the nearest `ailint.toml`
+    /// Load config: an explicit `--config` file, else the nearest `aigarden.toml`
     /// walking up from `cwd`, else strong defaults rooted at `cwd`.
     pub fn discover(explicit: Option<&Path>, cwd: &Path) -> Result<Loaded> {
         if let Some(path) = explicit {
@@ -321,7 +321,7 @@ impl Config {
         }
         let mut dir = cwd;
         loop {
-            let candidate = dir.join("ailint.toml");
+            let candidate = dir.join("aigarden.toml");
             if candidate.is_file() {
                 return Ok(Loaded {
                     config: parse_file(&candidate)?,

@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -10,7 +10,7 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: in config file [CONFIG]: invalid `descriptive-anchor` pattern `ADR-(\d+`: regex parse error:
+aigarden: in config file [CONFIG]: invalid `descriptive-anchor` pattern `ADR-(\d+`: regex parse error:
     ^(?:ADR-(\d+)$
      ^
 error: unclosed group

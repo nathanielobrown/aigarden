@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -10,4 +10,4 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: no files found under ["."]
+aigarden: no files found under ["."]

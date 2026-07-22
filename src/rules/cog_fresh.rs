@@ -1,9 +1,9 @@
 //! `cog-fresh`: every generated cog block matches what its generator would
 //! produce now. This is the cog engine's `--check` surfaced through the registry,
-//! so `ailint check` gates cog freshness alongside every other rule.
+//! so `aigarden check` gates cog freshness alongside every other rule.
 //!
 //! A failing generator becomes a finding here (never a hard error), so one broken
-//! cog cannot abort the whole `check` run — the standalone `ailint cog --check`
+//! cog cannot abort the whole `check` run — the standalone `aigarden cog --check`
 //! is the path that treats a generator failure as a tool error.
 
 use crate::cog;
@@ -22,8 +22,8 @@ impl Rule for CogFresh {
     }
     fn explain(&self) -> Explanation {
         Explanation {
-            checks: "A generated cog block (`<!-- ailint:cog … -->` … `<!-- ailint:end -->`) \
-matches what its generator produces now. Regenerate stale blocks with `ailint cog --write`. A \
+            checks: "A generated cog block (`<!-- aigarden:cog … -->` … `<!-- aigarden:end -->`) \
+matches what its generator produces now. Regenerate stale blocks with `aigarden cog --write`. A \
 failing generator becomes a finding here rather than aborting the whole check run.",
             config: NO_CONFIG,
             example: "cog block is stale — its generator now produces different output",

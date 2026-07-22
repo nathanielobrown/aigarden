@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -9,7 +9,7 @@ success: false
 exit_code: 1
 ----- stdout -----
 big.rs: [file-length] 701 lines exceeds the budget of 700 for `**/*.{rs,py,ts,tsx,js,jsx,vue,go,java,kt,c,cc,cpp,h,hpp,rb,swift,sh}`
-  help: split the file or raise the `**/*.{rs,py,ts,tsx,js,jsx,vue,go,java,kt,c,cc,cpp,h,hpp,rb,swift,sh}` budget in ailint.toml
-ailint: 1 finding
+  help: split the file or raise the `**/*.{rs,py,ts,tsx,js,jsx,vue,go,java,kt,c,cc,cpp,h,hpp,rb,swift,sh}` budget in aigarden.toml
+aigarden: 1 finding
 
 ----- stderr -----

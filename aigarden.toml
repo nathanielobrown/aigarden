@@ -1,4 +1,4 @@
-# ailint dogfoods itself: `mise run check` runs `ailint check .` over this repo.
+# aigarden dogfoods itself: `mise run check` runs `aigarden check .` over this repo.
 #
 # The reference rules would otherwise flag the many *example* doc paths this
 # codebase cites on purpose — the grammar docstrings, the test fixtures, and the

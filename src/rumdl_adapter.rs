@@ -4,7 +4,7 @@
 //! needs rumdl's workspace index over the whole file set) and a curated set of
 //! auto-fixable style rules.
 //!
-//! rumdl reports 1-based *character* columns; ailint spans are byte ranges, so
+//! rumdl reports 1-based *character* columns; aigarden spans are byte ranges, so
 //! every warning is converted here via [`char_pos_to_byte`]. rumdl lint failures
 //! are exceptional (malformed internal state), so we crash loud rather than
 //! degrade — a swallowed rumdl error would silently drop real findings.
@@ -19,7 +19,7 @@ use rumdl_lib::rules::{
 use crate::references::is_markdown;
 use crate::walk::SourceFile;
 
-/// One rumdl warning tied back to the ailint file it came from.
+/// One rumdl warning tied back to the aigarden file it came from.
 pub(crate) struct RumdlFinding<'a> {
     pub(crate) file: &'a SourceFile,
     pub(crate) warning: LintWarning,

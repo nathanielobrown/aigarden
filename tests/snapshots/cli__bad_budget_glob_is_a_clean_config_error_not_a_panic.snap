@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -10,4 +10,4 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: in config file [CONFIG]: invalid `file-length` budget glob `[unclosed`: error parsing glob '[unclosed': unclosed character class; missing ']'
+aigarden: in config file [CONFIG]: invalid `file-length` budget glob `[unclosed`: error parsing glob '[unclosed': unclosed character class; missing ']'

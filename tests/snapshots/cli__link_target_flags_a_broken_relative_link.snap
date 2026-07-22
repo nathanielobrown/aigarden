@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -13,6 +13,6 @@ error[link-target]: link target `guide.md` does not exist
   |
 1 | See [the guide](guide.md) for details.
   |                 ^^^^^^^^ fix the path, or create the target
-ailint: 1 finding
+aigarden: 1 finding
 
 ----- stderr -----

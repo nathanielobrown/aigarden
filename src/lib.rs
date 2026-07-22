@@ -1,4 +1,4 @@
-//! `ailint` — lint and maintain repositories for AI-agent + human collaboration.
+//! `aigarden` — lint and maintain repositories for AI-agent + human collaboration.
 //!
 //! The library is the whole tool; `main.rs` is a one-line shell. [`run`] takes a
 //! parsed [`Cli`] and returns a process [`ExitCode`]: 0 clean, 1 findings, 2
@@ -39,7 +39,7 @@ pub fn run(cli: &Cli) -> ExitCode {
         Err(err) => {
             // Tool/config failures are loud on stderr and exit 2, distinct from findings.
             let mut stderr = io::stderr();
-            let _ = writeln!(stderr, "ailint: {err:#}");
+            let _ = writeln!(stderr, "aigarden: {err:#}");
             ExitCode::from(2)
         }
     }
@@ -130,7 +130,7 @@ fn list_rules(out: &mut impl Write) -> Result<()> {
     Ok(())
 }
 
-/// Print one rule's full contract for `ailint explain <rule>`, sourced entirely
+/// Print one rule's full contract for `aigarden explain <rule>`, sourced entirely
 /// from the rule's [`rules::Explanation`]. An unknown name is a tool error (exit 2)
 /// listing the known rules — never a panic.
 fn explain_rule(name: &str, out: &mut impl Write) -> Result<()> {

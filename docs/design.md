@@ -1,14 +1,14 @@
-# ailint design
+# aigarden design
 
 **One-liner:** a Rust CLI that lints and maintains repositories for AI-agent + human collaboration — link/reference integrity, context-size budgets, and generated-content freshness — extracted from the doc-hygiene gates a large AI-authored codebase grows by hand.
 
-The premise: when agents write most of the code and docs, conventions that a human reviewer used to hold in their head have to be mechanized, because nobody is reading every diff. A gate is better documentation than a sentence. `ailint` turns each convention into a rule that runs in one pass and reports everything.
+The premise: when agents write most of the code and docs, conventions that a human reviewer used to hold in their head have to be mechanized, because nobody is reading every diff. A gate is better documentation than a sentence. `aigarden` turns each convention into a rule that runs in one pass and reports everything.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    cli[cli<br>clap subcommands + --output-format] --> config_load[config_load<br>ailint.toml strong defaults + shared excludes]
+    cli[cli<br>clap subcommands + --output-format] --> config_load[config_load<br>aigarden.toml strong defaults + shared excludes]
     config_load --> file_walker[file_walker<br>gitignore-aware walk]
     file_walker --> reference_extraction[reference_extraction<br>links, @-imports, bare paths, anchors]
 
@@ -52,7 +52,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 **Markdown style:**
 
-- `markdown-style` — a curated, auto-fixable slice of `rumdl_lib`'s style rules (trailing spaces, hard tabs, multiple blank lines, single trailing newline), surfaced under ailint's own config and diagnostics — repos drop `.rumdl.toml`: one tool, one config. `reflow` (MD013 paragraph re-wrapping) is opt-in. `ailint check --fix` applies the fixes on disk and re-reports the residue, so a second `--fix` run is a clean no-op
+- `markdown-style` — a curated, auto-fixable slice of `rumdl_lib`'s style rules (trailing spaces, hard tabs, multiple blank lines, single trailing newline), surfaced under aigarden's own config and diagnostics — repos drop `.rumdl.toml`: one tool, one config. `reflow` (MD013 paragraph re-wrapping) is opt-in. `aigarden check --fix` applies the fixes on disk and re-reports the residue, so a second `--fix` run is a clean no-op
 
 **Generated freshness:**
 
@@ -72,15 +72,15 @@ Other mycelia-specific gates (diagram-tree axis tags, `§N` design-doc refs) are
 
 Each rule carries its own contract — a description, config keys with defaults, an example finding, fix behavior, and a lifecycle status — on the `Rule` trait itself, so there is one source and no separate catalog to keep in sync. Two read-only commands surface it:
 
-- `ailint rules` — one row per rule: name, status (`report-only`, `fixable`, or `config-gated` for a rule inert until configured, like `descriptive-anchor`), and the one-line description
-- `ailint explain <rule>` — the full contract for one rule. An unknown name is a tool error (exit 2) that lists the known rules
+- `aigarden rules` — one row per rule: name, status (`report-only`, `fixable`, or `config-gated` for a rule inert until configured, like `descriptive-anchor`), and the one-line description
+- `aigarden explain <rule>` — the full contract for one rule. An unknown name is a tool error (exit 2) that lists the known rules
 
 ## Config model
 
-`ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable, per-rule tables for options. The walker already honors `.gitignore`; the top-level `exclude`/`extend-exclude` globs add tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools. `exclude` **replaces** the built-in defaults (`**/fixtures/**`); `extend-exclude` **adds** to the effective base. Both may coexist, and both mirror ruff.
+`aigarden.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable, per-rule tables for options. The walker already honors `.gitignore`; the top-level `exclude`/`extend-exclude` globs add tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools. `exclude` **replaces** the built-in defaults (`**/fixtures/**`); `extend-exclude` **adds** to the effective base. Both may coexist, and both mirror ruff.
 
 ```toml
-# ailint.toml — everything on by default; change only what you need.
+# aigarden.toml — everything on by default; change only what you need.
 
 extend-exclude = [".claude/worktrees/**"]  # added on top of the built-in **/fixtures/**
 
@@ -93,7 +93,7 @@ ignore = ["cog-fresh"]
 "{CLAUDE,AGENTS}.md" = { tokens = 4000 }   # ~4 chars/token
 
 [markdown-style]
-reflow = true       # rumdl rules surface under ailint keys
+reflow = true       # rumdl rules surface under aigarden keys
 
 # descriptive-anchor: inert until you declare the stable-ID shapes (regexes).
 [descriptive-anchor]
@@ -132,14 +132,14 @@ ignore = ["descriptive-anchor"]
 A cog is a generated block whose body is recomputed on every run. Markers are HTML comments, so they vanish in rendered markdown:
 
 ```
-<!-- ailint:cog file-tree src -->
+<!-- aigarden:cog file-tree src -->
 ...generated body, regenerated on every run...
-<!-- ailint:end -->
+<!-- aigarden:end -->
 ```
 
-The twist over a plain cog clone: a marker names **either** a built-in generator **or** an arbitrary shell command embedded in the marker itself (`<!-- ailint:cog sh "…" -->`). Built-ins are a deliberately non-Turing-complete template language; the shell escape hatch covers everything else without teaching the tool a scripting language.
+The twist over a plain cog clone: a marker names **either** a built-in generator **or** an arbitrary shell command embedded in the marker itself (`<!-- aigarden:cog sh "…" -->`). Built-ins are a deliberately non-Turing-complete template language; the shell escape hatch covers everything else without teaching the tool a scripting language.
 
-**Marker grammar.** The open marker is an HTML comment `<!-- ailint:cog <generator> <args> -->`; the close marker is `<!-- ailint:end -->`. `<generator>` is one built-in name or `sh`. `<args>` is whitespace-separated tokens where a `"…"`-quoted run is one token (so a path with spaces, or a whole shell command, stays intact). The built-ins take a single positional path/glob; `sh` takes exactly one quoted command. Parsing is **fence-aware**: a marker inside a ```` ``` ```` or `~~~` fence is a documented example, not a live block — a doc can show the syntax without expanding it. A nested open marker or an unterminated block fails loudly; it never passes as fresh. Generated output is normalized so a non-empty body ends in exactly one newline (the end marker always lands on its own line).
+**Marker grammar.** The open marker is an HTML comment `<!-- aigarden:cog <generator> <args> -->`; the close marker is `<!-- aigarden:end -->`. `<generator>` is one built-in name or `sh`. `<args>` is whitespace-separated tokens where a `"…"`-quoted run is one token (so a path with spaces, or a whole shell command, stays intact). The built-ins take a single positional path/glob; `sh` takes exactly one quoted command. Parsing is **fence-aware**: a marker inside a ```` ``` ```` or `~~~` fence is a documented example, not a live block — a doc can show the syntax without expanding it. A nested open marker or an unterminated block fails loudly; it never passes as fresh. Generated output is normalized so a non-empty body ends in exactly one newline (the end marker always lands on its own line).
 
 Built-in trio for v1 (each is a pure, deterministic function of the tree on disk):
 
@@ -149,13 +149,13 @@ Built-in trio for v1 (each is a pure, deterministic function of the tree on disk
 
 `sh "<command>"` runs the command via `sh -c` with **cwd = the file's repo root** (the nearest `.git` ancestor, else the scan root) and splices its stdout. A nonzero exit is a tool error with stderr surfaced — never a silent empty region.
 
-`ailint cog --check` gates freshness (a stale block is a `cog-fresh` diagnostic, exit 1; never writes); `ailint cog --write` regenerates in place, printing which files changed. The two are separate code paths on purpose — a check that regenerated-then-compared against itself would always pass. One flag is **required**: there is no default mode.
+`aigarden cog --check` gates freshness (a stale block is a `cog-fresh` diagnostic, exit 1; never writes); `aigarden cog --write` regenerates in place, printing which files changed. The two are separate code paths on purpose — a check that regenerated-then-compared against itself would always pass. One flag is **required**: there is no default mode.
 
-A failing generator is treated differently by the two entry points. Standalone `ailint cog --check` (and `--write`) treats it as a **tool error** (exit 2, loud on stderr) — a write must be correct or not happen. The same blocks reached through the `cog-fresh` rule during `ailint check` treat a failure as an ordinary **finding** (exit 1), so one bad generator can never abort the whole lint run.
+A failing generator is treated differently by the two entry points. Standalone `aigarden cog --check` (and `--write`) treats it as a **tool error** (exit 2, loud on stderr) — a write must be correct or not happen. The same blocks reached through the `cog-fresh` rule during `aigarden check` treat a failure as an ordinary **finding** (exit 1), so one bad generator can never abort the whole lint run.
 
 ## mv
 
-`ailint mv <src> <dst>` moves a **file** (`git mv` when tracked, else a plain rename that never loses data), then rewrites **every reference form the link rules audit** — markdown links, backticked bare paths, and `@`-imports across markdown, plus root-relative doc-path tokens across non-markdown source. Any `#fragment` on a rewritten link is preserved. The moved file's own outbound relative links are re-anchored from its new directory. It uses the same reference-extraction core and the same exclusions as `check`, then re-runs the reference rules to confirm it left the repo clean (exit 1 with the residue if not — the verify-after step).
+`aigarden mv <src> <dst>` moves a **file** (`git mv` when tracked, else a plain rename that never loses data), then rewrites **every reference form the link rules audit** — markdown links, backticked bare paths, and `@`-imports across markdown, plus root-relative doc-path tokens across non-markdown source. Any `#fragment` on a rewritten link is preserved. The moved file's own outbound relative links are re-anchored from its new directory. It uses the same reference-extraction core and the same exclusions as `check`, then re-runs the reference rules to confirm it left the repo clean (exit 1 with the residue if not — the verify-after step).
 
 **Staging mirrors the move.** When `<src>` was tracked (the `git mv` path), `mv` also `git add`s each referencing file it rewrote, so the whole move — the rename plus every reference rewrite — lands as one fully-staged changeset, consistent with `git mv`'s own staging. Only the files `mv` itself touched are staged; unrelated worktree edits are never swept in. When the move fell back to a plain rename (untracked src, or no git), nothing is staged.
 
@@ -171,7 +171,7 @@ A failing generator is treated differently by the two entry points. Standalone `
 - `json` — structured findings for agents and tooling
 - `github` — GitHub Actions workflow-command annotations (`::error file=…,line=…,col=…::[rule] message`)
 
-Across all formats: the **green path is silent** (one pass line), the **red path is loud** (every finding). ailint owns this UX natively rather than wrapping each check in an output shim.
+Across all formats: the **green path is silent** (one pass line), the **red path is loud** (every finding). aigarden owns this UX natively rather than wrapping each check in an output shim.
 
 **Exit codes:** `0` clean, `1` findings, `2` tool/config error (bad config, no files found). A config or IO error is loud on stderr and never masquerades as a clean pass.
 

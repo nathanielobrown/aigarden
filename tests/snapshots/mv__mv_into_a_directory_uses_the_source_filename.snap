@@ -1,7 +1,7 @@
 ---
 source: tests/mv.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - mv
     - notes.md
@@ -11,6 +11,6 @@ success: true
 exit_code: 0
 ----- stdout -----
 moved notes.md → archive/notes.md (rewrote 0 reference(s) across 0 file(s))
-✓ ailint: checked 1 file, no findings
+✓ aigarden: checked 1 file, no findings
 
 ----- stderr -----

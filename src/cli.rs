@@ -8,13 +8,13 @@ use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 /// Lint and maintain repositories for AI-agent + human collaboration.
 #[derive(Parser, Debug)]
-#[command(name = "ailint", version, about)]
+#[command(name = "aigarden", version, about)]
 pub struct Cli {
     /// How to render diagnostics: annotated text for humans, or machine output for agents/CI.
     #[arg(long, value_enum, global = true, default_value_t = OutputFormat::Human)]
     pub output_format: OutputFormat,
 
-    /// Use this config file instead of discovering `ailint.toml` upward from the cwd.
+    /// Use this config file instead of discovering `aigarden.toml` upward from the cwd.
     #[arg(long, global = true, value_name = "FILE")]
     pub config: Option<PathBuf>,
 
@@ -32,11 +32,11 @@ pub enum Command {
         #[arg(long)]
         fix: bool,
     },
-    /// Check or rewrite generated cog blocks (`<!-- ailint:cog … -->` regions).
+    /// Check or rewrite generated cog blocks (`<!-- aigarden:cog … -->` regions).
     ///
     /// Pick exactly one mode — there is no default:
-    ///   ailint cog --check    # fail if any block is stale (CI / the gate)
-    ///   ailint cog --write    # regenerate every stale block in place
+    ///   aigarden cog --check    # fail if any block is stale (CI / the gate)
+    ///   aigarden cog --write    # regenerate every stale block in place
     #[command(group(ArgGroup::new("mode").required(true).args(["write", "check"])))]
     Cog {
         /// Regenerate every cog block in place, reporting which files changed.
@@ -51,8 +51,8 @@ pub enum Command {
     /// Uses `git mv` for a tracked file (else a plain rename), rewrites markdown
     /// links, `@`-imports, backticked bare paths, and code doc-path citations, then
     /// re-runs the link rules to confirm the repo is still clean. Files only.
-    ///   ailint mv docs/old.md docs/new.md      # rename in place
-    ///   ailint mv notes.md archive/            # move into a directory
+    ///   aigarden mv docs/old.md docs/new.md      # rename in place
+    ///   aigarden mv notes.md archive/            # move into a directory
     Mv {
         /// File to move.
         src: String,
@@ -64,7 +64,7 @@ pub enum Command {
     /// Print one rule's full contract: what it checks, its config keys, an example
     /// finding, and whether `--fix` repairs it.
     Explain {
-        /// The rule name, as shown by `ailint rules` (e.g. `bare-path`).
+        /// The rule name, as shown by `aigarden rules` (e.g. `bare-path`).
         rule: String,
     },
 }

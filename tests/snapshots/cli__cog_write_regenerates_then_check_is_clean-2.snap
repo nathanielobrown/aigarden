@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - cog
     - "--check"
@@ -9,6 +9,6 @@ info:
 success: true
 exit_code: 0
 ----- stdout -----
-✓ ailint: checked 1 file, no findings
+✓ aigarden: checked 1 file, no findings
 
 ----- stderr -----

@@ -81,7 +81,7 @@ shadows a default and adds new coverage",
                         glob = budget.glob,
                     ),
                     suggestion: Some(format!(
-                        "split the file or raise the `{}` budget in ailint.toml",
+                        "split the file or raise the `{}` budget in aigarden.toml",
                         budget.glob
                     )),
                 })

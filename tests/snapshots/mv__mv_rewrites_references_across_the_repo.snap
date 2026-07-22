@@ -1,7 +1,7 @@
 ---
 source: tests/mv.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - mv
     - guide.md
@@ -11,6 +11,6 @@ success: true
 exit_code: 0
 ----- stdout -----
 moved guide.md → docs/guide.md (rewrote 1 reference(s) across 1 file(s))
-✓ ailint: checked 2 files, no findings
+✓ aigarden: checked 2 files, no findings
 
 ----- stderr -----

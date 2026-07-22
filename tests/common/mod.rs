@@ -6,9 +6,9 @@ use std::process::Command;
 
 use insta_cmd::get_cargo_bin;
 
-/// A `Command` for the built `ailint` binary, rooted in `dir`.
-pub(crate) fn ailint(dir: &Path) -> Command {
-    let mut cmd = Command::new(get_cargo_bin("ailint"));
+/// A `Command` for the built `aigarden` binary, rooted in `dir`.
+pub(crate) fn aigarden(dir: &Path) -> Command {
+    let mut cmd = Command::new(get_cargo_bin("aigarden"));
     cmd.current_dir(dir);
     cmd
 }

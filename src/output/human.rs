@@ -18,7 +18,7 @@ pub(super) fn render(
         let plural = if files_scanned == 1 { "" } else { "s" };
         return writeln!(
             writer,
-            "\u{2713} ailint: checked {files_scanned} file{plural}, no findings"
+            "\u{2713} aigarden: checked {files_scanned} file{plural}, no findings"
         );
     }
     for diagnostic in diagnostics {
@@ -26,7 +26,7 @@ pub(super) fn render(
     }
     let n = diagnostics.len();
     let plural = if n == 1 { "" } else { "s" };
-    writeln!(writer, "ailint: {n} finding{plural}")
+    writeln!(writer, "aigarden: {n} finding{plural}")
 }
 
 fn render_one(

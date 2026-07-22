@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 info:
-  program: ailint
+  program: aigarden
   args:
     - check
 ---
@@ -10,7 +10,7 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-ailint: parsing config file [CONFIG]: TOML parse error at line 1, column 2
+aigarden: parsing config file [CONFIG]: TOML parse error at line 1, column 2
   |
 1 | [nonsense]
   |  ^^^^^^^^

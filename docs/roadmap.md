@@ -1,4 +1,4 @@
-# ailint roadmap
+# aigarden roadmap
 
 Future ideas, deliberately out of v1. v1 is the general core: reference integrity, size budgets, markdown style, and cogs (see [design.md](design.md)). Everything here is a candidate for later, roughly in order of how general it is.
 
@@ -21,8 +21,8 @@ v1 budgets whole files. A finer rule: budget the **doc content within** a code f
 
 ## Self-consistency gates
 
-- **CI-vs-task drift** — assert that a CI workflow's per-gate step list matches the task runner's aggregate definition, so the two hand-kept parallel lists can't silently diverge. A natural thing for ailint to dogfood on its own repo
-- **Config schema** — emit a JSON schema for `ailint.toml` (à la ruff/rumdl) for editor completion and validation
+- **CI-vs-task drift** — assert that a CI workflow's per-gate step list matches the task runner's aggregate definition, so the two hand-kept parallel lists can't silently diverge. A natural thing for aigarden to dogfood on its own repo
+- **Config schema** — emit a JSON schema for `aigarden.toml` (à la ruff/rumdl) for editor completion and validation
 
 ## More cog generators
 
@@ -35,4 +35,4 @@ The mycelia shadow-run (see [mycelia-parity.md](mycelia-parity.md)) grounds two 
 
 ## Explicitly out of scope
 
-Wrapping external linters/formatters/typecheckers (ruff, pyrefly, prettier), API-contract or test-fixture generation, and operator tooling (dev servers, metrics, release plumbing) are **not** ailint's job — it is repo hygiene for AI+human navigation, not a build system.
+Wrapping external linters/formatters/typecheckers (ruff, pyrefly, prettier), API-contract or test-fixture generation, and operator tooling (dev servers, metrics, release plumbing) are **not** aigarden's job — it is repo hygiene for AI+human navigation, not a build system.
