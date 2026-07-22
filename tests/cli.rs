@@ -70,11 +70,12 @@ fn check_github_output_emits_workflow_annotations() {
 #[test]
 fn config_can_override_a_budget_with_a_custom_glob_and_token_metric() {
     let dir = tempfile::tempdir().unwrap();
-    // A tokens budget on *.txt: 8 chars -> ceil(8/4) = 2 tokens > 1.
+    // A tokens budget on *.txt: 8 chars -> ceil(8/4) = 2 tokens > 1. `extend-budgets`
+    // adds it on top of the built-ins without re-listing them.
     write(
         dir.path(),
         "ailint.toml",
-        "[[file-length.budget]]\nglob = \"**/*.txt\"\nmetric = \"tokens\"\nmax = 1\n",
+        "[file-length.extend-budgets]\n\"**/*.txt\" = { tokens = 1 }\n",
     );
     write(dir.path(), "notes.txt", "abcdefgh");
     assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
@@ -100,7 +101,7 @@ fn bad_budget_glob_is_a_clean_config_error_not_a_panic() {
     write(
         dir.path(),
         "ailint.toml",
-        "[[file-length.budget]]\nglob = \"[unclosed\"\nmetric = \"lines\"\nmax = 1\n",
+        "[file-length.extend-budgets]\n\"[unclosed\" = { lines = 1 }\n",
     );
     write(dir.path(), "a.rs", "fn main() {}\n");
     insta::with_settings!({filters => vec![(r"\S*ailint\.toml", "[CONFIG]")]}, {
@@ -303,17 +304,18 @@ fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
 }
 
 #[test]
-fn override_scopes_a_single_rule_by_path() {
+fn per_file_ignores_scopes_a_single_rule_by_path() {
     let dir = tempfile::tempdir().unwrap();
     // grammar.rs both cites a fake doc path (a code-doc-ref finding) and is over a
-    // tiny line budget. An override that disables *only* code-doc-ref for that path
-    // must silence that rule while file-length still fires — a global exclude would
-    // drop the file from every rule, so this proves per-path, per-rule scoping.
+    // tiny line budget. A per-file-ignores entry that disables *only* code-doc-ref
+    // for that path must silence that rule while file-length still fires — a global
+    // exclude would drop the file from every rule, so this proves per-path, per-rule
+    // scoping.
     write(
         dir.path(),
         "ailint.toml",
-        "[[file-length.budget]]\nglob = \"**/*.rs\"\nmetric = \"lines\"\nmax = 1\n\
-         [[overrides]]\nfiles = [\"grammar.rs\"]\n[overrides.code-doc-ref]\nenabled = false\n",
+        "[file-length.extend-budgets]\n\"**/*.rs\" = { lines = 1 }\n\
+         [per-file-ignores]\n\"grammar.rs\" = [\"code-doc-ref\"]\n",
     );
     write(
         dir.path(),
@@ -324,27 +326,20 @@ fn override_scopes_a_single_rule_by_path() {
 }
 
 #[test]
-fn later_override_reenables_a_rule_for_a_narrower_glob() {
+fn per_file_ignores_unions_rules_and_scopes_by_glob() {
     let dir = tempfile::tempdir().unwrap();
-    // Two overrides both match src/keep.rs: the first disables code-doc-ref across
-    // src/**, the second re-enables it for src/keep.rs. Declaration order wins, so
-    // keep.rs is still checked (its fake doc path is flagged) while other.rs is not.
+    // Two entries, ruff-style union semantics. `docs/**` turns off bare-path for the
+    // whole tree; `docs/legacy.md` additionally turns off link-target. So legacy.md
+    // (matched by both) has *both* silenced and is clean, while other.md keeps
+    // link-target — its broken link is still flagged, its bad bare path is not.
     write(
         dir.path(),
         "ailint.toml",
-        "[[overrides]]\nfiles = [\"src/**\"]\n[overrides.code-doc-ref]\nenabled = false\n\
-         [[overrides]]\nfiles = [\"src/keep.rs\"]\n[overrides.code-doc-ref]\nenabled = true\n",
+        "[per-file-ignores]\n\"docs/**\" = [\"bare-path\"]\n\"docs/legacy.md\" = [\"link-target\"]\n",
     );
-    write(
-        dir.path(),
-        "src/keep.rs",
-        "// see docs/gone.md\nfn a() {}\n",
-    );
-    write(
-        dir.path(),
-        "src/other.rs",
-        "// see docs/gone.md\nfn b() {}\n",
-    );
+    let body = "See [gone](missing.md) and `src/nope.rs` in the tree.\n";
+    write(dir.path(), "docs/legacy.md", body);
+    write(dir.path(), "docs/other.md", body);
     assert_cmd_snapshot!(ailint(dir.path()).arg("check"));
 }
 

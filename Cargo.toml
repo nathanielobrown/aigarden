@@ -11,7 +11,8 @@ license = "MIT"
 clap = { version = "4.6", features = ["derive"] }  # CLI parsing: subcommands + global --output-format
 serde = { version = "1", features = ["derive"] }   # deserialize ailint.toml config into typed structs
 serde_json = "1"                                    # serialize the `json` output format's stable report schema
-toml = "1.1"                                        # parse ailint.toml
+toml = { version = "1.1", features = ["preserve_order"] }  # parse ailint.toml; preserve document order for first-match budget resolution
+indexmap = { version = "2", features = ["serde"] }  # order-preserving maps for per-file-ignores and file-length budgets (declaration order = first-match order)
 annotate-snippets = "0.12"                          # rustc-style annotated snippets for the human output format
 anyhow = "1"                                        # error context on the main/IO path (fail fast, crash loud)
 ignore = "0.4"                                      # gitignore-aware, parallel repository file walker

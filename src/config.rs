@@ -1,18 +1,23 @@
 //! `ailint.toml`: discovery, typed deserialization, and the strong defaults that
 //! let a missing or empty file just work.
 //!
-//! Two invariants the rest of the tool leans on:
-//! - **Excludes are defined once** ([`ExcludeConfig`]) and shared by every rule
-//!   and (later) by `mv` — never re-implemented per rule.
+//! Ruff-shaped, so the spellings transfer: top-level `exclude`/`extend-exclude`,
+//! a flat `ignore` list plus a `[per-file-ignores]` map for turning rules off, and
+//! `[file-length] budgets`/`extend-budgets` maps. Two invariants the rest of the
+//! tool leans on:
+//! - **Excludes are defined once** ([`Config::effective_excludes`]) and shared by
+//!   every rule and by `mv` — never re-implemented per rule.
 //! - **Unknown keys are rejected** (`deny_unknown_fields` throughout) so a typo'd
 //!   config fails loudly at startup instead of silently doing nothing.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use globset::{Glob, GlobSet};
-use serde::{Deserialize, Serialize};
+use indexmap::IndexMap;
+use serde::Deserialize;
 
 use crate::rules::descriptive_anchor::anchored_pattern;
 use crate::walk::build_glob_set;
@@ -22,36 +27,29 @@ use crate::walk::build_glob_set;
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Config {
-    /// Tool-level path exclusions layered on top of `.gitignore`.
+    /// Path globs that **replace** the built-in default excludes ([`default_excludes`]).
+    /// Absent ⇒ the built-ins apply. Ruff semantics: pair with `extend-exclude` to
+    /// add on top rather than replace.
     #[serde(default)]
-    pub exclude: ExcludeConfig,
-    /// The `file-length` rule's budgets and toggle.
+    pub exclude: Option<Vec<String>>,
+    /// Path globs appended to the effective base excludes (the built-ins, or
+    /// `exclude` when set). May coexist with `exclude`.
+    #[serde(default)]
+    pub extend_exclude: Vec<String>,
+    /// Rule names disabled repo-wide. An unknown name is a load-time config error.
+    #[serde(default)]
+    pub ignore: Vec<String>,
+    /// `"glob" = ["rule", …]`: for a matching file, the **union** of every matching
+    /// entry's rules is disabled (order-independent, ruff-style). Globs and rule
+    /// names are validated eagerly at load.
+    #[serde(default)]
+    pub per_file_ignores: IndexMap<String, Vec<String>>,
+    /// The `file-length` rule's budgets.
     #[serde(default)]
     pub file_length: FileLengthConfig,
-    /// `link-target`: relative markdown link/image targets exist on disk.
-    #[serde(default)]
-    pub link_target: RuleToggle,
-    /// `link-case`: a link target's case matches the filesystem exactly.
-    #[serde(default)]
-    pub link_case: RuleToggle,
-    /// `bare-path`: a backticked file-shaped path in prose exists.
-    #[serde(default)]
-    pub bare_path: RuleToggle,
-    /// `import-target`: an `@path` import in a guidance file resolves.
-    #[serde(default)]
-    pub import_target: RuleToggle,
-    /// `code-doc-ref`: a doc path cited in a non-markdown file exists.
-    #[serde(default)]
-    pub code_doc_ref: RuleToggle,
-    /// `anchor-resolves`: a `#fragment` resolves to a real heading (rumdl MD051).
-    #[serde(default)]
-    pub anchor_resolves: RuleToggle,
     /// `markdown-style`: rumdl style rules surfaced under ailint config.
     #[serde(default)]
     pub markdown_style: MarkdownStyleConfig,
-    /// `cog-fresh`: every generated cog block matches its generator's output.
-    #[serde(default)]
-    pub cog_fresh: RuleToggle,
     /// `descriptive-anchor`: a stable-ID link must carry descriptive text.
     #[serde(default)]
     pub descriptive_anchor: DescriptiveAnchorConfig,
@@ -59,53 +57,13 @@ pub struct Config {
     /// The config type lives with its rule ([`crate::rules::status_header`]).
     #[serde(default)]
     pub status_header: crate::rules::status_header::StatusHeaderConfig,
-    /// Glob-scoped setting overrides, applied in declaration order (later wins),
-    /// on top of the base tables above. See [`Override`] and [`Resolver`].
-    #[serde(default)]
-    pub overrides: Vec<Override>,
-}
-
-/// A glob-scoped settings override, ruff/ESLint-style: for files matching `files`,
-/// each rule table it names **replaces** that rule's base table. Only the tables
-/// listed are affected; unlisted rules keep their base settings. Overrides apply
-/// in declaration order, so a later override wins over an earlier one, and any
-/// override wins over the base — the single mechanism for per-path settings
-/// (disabling a rule for a glob is how you exempt files from it).
-#[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-pub struct Override {
-    /// Globs (globset syntax, repo-relative) this override applies to. Required —
-    /// an override with no `files` matches nothing and is almost certainly a typo.
-    pub files: Vec<String>,
-    #[serde(default)]
-    pub file_length: Option<FileLengthConfig>,
-    #[serde(default)]
-    pub markdown_style: Option<MarkdownStyleConfig>,
-    #[serde(default)]
-    pub descriptive_anchor: Option<DescriptiveAnchorConfig>,
-    #[serde(default)]
-    pub link_target: Option<RuleToggle>,
-    #[serde(default)]
-    pub link_case: Option<RuleToggle>,
-    #[serde(default)]
-    pub bare_path: Option<RuleToggle>,
-    #[serde(default)]
-    pub import_target: Option<RuleToggle>,
-    #[serde(default)]
-    pub code_doc_ref: Option<RuleToggle>,
-    #[serde(default)]
-    pub anchor_resolves: Option<RuleToggle>,
-    #[serde(default)]
-    pub cog_fresh: Option<RuleToggle>,
 }
 
 /// `descriptive-anchor`: config-driven, generic, and **inert until configured**.
 /// With no `patterns` it emits nothing, so it is safe to leave on by default.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct DescriptiveAnchorConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
     /// Regexes for stable-ID shapes (e.g. `ADR-\d+`, `T\d+`, `P\d+`). A markdown
     /// link whose visible text is *only* one of these — a bare ID with no
     /// descriptive words — is flagged, unless it sits inside a prose parenthetical
@@ -114,154 +72,17 @@ pub struct DescriptiveAnchorConfig {
     pub patterns: Vec<String>,
 }
 
-impl Default for DescriptiveAnchorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            patterns: Vec::new(),
-        }
-    }
-}
-
-/// Resolves each rule's effective config *for a given file*, applying the
-/// [`Override`] precedence (base < overrides, later declaration wins) in one place
-/// so no rule re-implements it. Override globs are compiled once at construction;
-/// a malformed glob is a loud tool error (fail fast), never a silent no-op.
-pub(crate) struct Resolver<'a> {
-    config: &'a Config,
-    /// One compiled glob set per override, index-aligned with `config.overrides`.
-    matchers: Vec<GlobSet>,
-}
-
-impl<'a> Resolver<'a> {
-    pub(crate) fn new(config: &'a Config) -> Result<Self> {
-        let matchers = config
-            .overrides
-            .iter()
-            .enumerate()
-            .map(|(i, ov)| {
-                build_glob_set(&ov.files)
-                    .with_context(|| format!("compiling `overrides[{i}].files` globs"))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Self { config, matchers })
-    }
-
-    /// The whole precedence rule: start from the base table, then let each matching
-    /// override that supplies this table replace it, in declaration order — so the
-    /// last matching override wins and any override beats the base.
-    fn resolve<T>(
-        &self,
-        path: &str,
-        base: &'a T,
-        pick: impl Fn(&'a Override) -> Option<&'a T>,
-    ) -> &'a T {
-        let mut chosen = base;
-        for (matcher, ov) in self.matchers.iter().zip(&self.config.overrides) {
-            if matcher.is_match(path)
-                && let Some(table) = pick(ov)
-            {
-                chosen = table;
-            }
-        }
-        chosen
-    }
-
-    pub(crate) fn file_length(&self, path: &str) -> &'a FileLengthConfig {
-        self.resolve(path, &self.config.file_length, |o| o.file_length.as_ref())
-    }
-    pub(crate) fn markdown_style(&self, path: &str) -> &'a MarkdownStyleConfig {
-        self.resolve(path, &self.config.markdown_style, |o| {
-            o.markdown_style.as_ref()
-        })
-    }
-    pub(crate) fn descriptive_anchor(&self, path: &str) -> &'a DescriptiveAnchorConfig {
-        self.resolve(path, &self.config.descriptive_anchor, |o| {
-            o.descriptive_anchor.as_ref()
-        })
-    }
-    pub(crate) fn link_target(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.link_target, |o| o.link_target.as_ref())
-            .enabled
-    }
-    pub(crate) fn link_case(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.link_case, |o| o.link_case.as_ref())
-            .enabled
-    }
-    pub(crate) fn bare_path(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.bare_path, |o| o.bare_path.as_ref())
-            .enabled
-    }
-    pub(crate) fn import_target(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.import_target, |o| {
-            o.import_target.as_ref()
-        })
-        .enabled
-    }
-    pub(crate) fn code_doc_ref(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.code_doc_ref, |o| o.code_doc_ref.as_ref())
-            .enabled
-    }
-    pub(crate) fn anchor_resolves(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.anchor_resolves, |o| {
-            o.anchor_resolves.as_ref()
-        })
-        .enabled
-    }
-    pub(crate) fn cog_fresh(&self, path: &str) -> bool {
-        self.resolve(path, &self.config.cog_fresh, |o| o.cog_fresh.as_ref())
-            .enabled
-    }
-}
-
-/// A plain per-rule on/off switch — the shared shape for rules with no other
-/// options. `enabled` defaults true so an absent table means "on".
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-pub struct RuleToggle {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-}
-
-impl Default for RuleToggle {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
-
 /// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
 /// under ailint keys, rather than exposing raw rumdl config. `reflow` maps to
 /// rumdl's MD013 one-paragraph-per-line normalization; the rest are rumdl's
 /// defaults, fixable via `ailint check --fix`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct MarkdownStyleConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
     /// Normalize each paragraph to a single line (rumdl MD013 reflow), the
     /// convention the source repo uses. Off by default — it rewrites prose.
     #[serde(default)]
     pub reflow: bool,
-}
-
-impl Default for MarkdownStyleConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            reflow: false,
-        }
-    }
-}
-
-/// Paths skipped by every rule — the single home for the fixtures/worktree
-/// exemption that used to be re-coded per tool.
-#[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExcludeConfig {
-    /// Glob patterns (globset syntax) matched against repo-relative paths.
-    /// Added to the built-in defaults, not replacing them (see [`Self::effective_paths`]).
-    #[serde(default)]
-    pub paths: Vec<String>,
 }
 
 /// Built-in exclusions applied to every repo. `**/fixtures/**` because tracked
@@ -271,65 +92,103 @@ fn default_excludes() -> Vec<String> {
     vec!["**/fixtures/**".to_string()]
 }
 
-impl ExcludeConfig {
-    /// User paths unioned with the built-in defaults. Union, not override, so
-    /// adding one exclude never silently drops fixtures protection.
+impl Config {
+    /// The effective exclude globs: the base (`exclude` if set, else the built-ins),
+    /// plus `extend-exclude` appended. The single home for the walked-file universe.
     #[must_use]
-    pub fn effective_paths(&self) -> Vec<String> {
-        self.paths
-            .iter()
-            .cloned()
-            .chain(default_excludes())
+    pub fn effective_excludes(&self) -> Vec<String> {
+        let base = self.exclude.clone().unwrap_or_else(default_excludes);
+        base.into_iter()
+            .chain(self.extend_exclude.iter().cloned())
             .collect()
     }
 }
 
-/// Config for the `file-length` rule.
-#[derive(Debug, Deserialize)]
+/// Config for the `file-length` rule. Budgets are a `"glob" = { lines | tokens }`
+/// map; declaration order is first-match order (see [`Self::effective_budgets`]).
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct FileLengthConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// Append the generic built-in budgets after the user's. Set `false` to run
-    /// **only** the user budgets — required to faithfully translate an
-    /// exactly-scoped external gate (whose dirs the generic `**/*.py`/`**/*.md`
-    /// defaults would over-cover). Defaults resolve first-match-wins after the
-    /// user's, so they can otherwise only be shadowed, not removed.
-    #[serde(default = "default_true")]
-    pub use_defaults: bool,
-    /// User budgets, checked **before** the built-in defaults (first match wins),
-    /// so a user entry both overrides a default glob and extends coverage to new
-    /// globs without re-listing the defaults.
+    /// Budgets that **replace** the built-in defaults ([`default_budgets`]). Absent
+    /// ⇒ the built-ins apply.
     #[serde(default)]
-    pub budget: Vec<Budget>,
+    pub budgets: Option<IndexMap<String, BudgetValue>>,
+    /// Budgets checked **before** the effective base (so a user entry shadows a
+    /// default glob), then extend coverage to new globs without re-listing the base.
+    #[serde(default)]
+    pub extend_budgets: IndexMap<String, BudgetValue>,
 }
 
-impl Default for FileLengthConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            use_defaults: true,
-            budget: Vec::new(),
+impl FileLengthConfig {
+    /// The ordered budget list: `extend-budgets` (declaration order) then the base
+    /// (`budgets` if set, else the built-ins). First matching glob wins, so
+    /// `extend-budgets` shadows the base. Values are validated at config load, so
+    /// the metric resolution here cannot fail.
+    pub fn effective_budgets(&self) -> Vec<Budget> {
+        let base = match &self.budgets {
+            Some(map) => budgets_from_map(map),
+            None => default_budgets(),
+        };
+        budgets_from_map(&self.extend_budgets)
+            .into_iter()
+            .chain(base)
+            .collect()
+    }
+}
+
+/// One `file-length` budget value: an inline table with **exactly one** of `lines`
+/// or `tokens` (the ceiling for that metric). Zero or both is a load-time config
+/// error ([`Self::resolve`]); an unknown key is rejected by `deny_unknown_fields`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct BudgetValue {
+    #[serde(default)]
+    pub lines: Option<usize>,
+    #[serde(default)]
+    pub tokens: Option<usize>,
+}
+
+impl BudgetValue {
+    /// The `(metric, max)` this value names, or a config error if it sets neither or
+    /// both keys — a budget must measure exactly one size.
+    fn resolve(&self) -> Result<(Metric, usize)> {
+        match (self.lines, self.tokens) {
+            (Some(lines), None) => Ok((Metric::Lines, lines)),
+            (None, Some(tokens)) => Ok((Metric::Tokens, tokens)),
+            (None, None) => bail!(
+                "a `file-length` budget must set exactly one of `lines`/`tokens`, but neither is set"
+            ),
+            (Some(_), Some(_)) => {
+                bail!(
+                    "a `file-length` budget must set exactly one of `lines`/`tokens`, but both are set"
+                )
+            }
         }
     }
 }
 
-impl FileLengthConfig {
-    /// User budgets, then the built-in defaults (unless `use_defaults = false`);
-    /// first matching glob wins.
-    pub fn effective_budgets(&self) -> Vec<Budget> {
-        let defaults = if self.use_defaults {
-            default_budgets()
-        } else {
-            Vec::new()
-        };
-        self.budget.iter().cloned().chain(defaults).collect()
-    }
+/// Flatten a validated `"glob" = { lines | tokens }` map into ordered [`Budget`]s.
+/// The map preserves document order (indexmap), so first-match order is the order
+/// the entries appear in `ailint.toml`.
+fn budgets_from_map(map: &IndexMap<String, BudgetValue>) -> Vec<Budget> {
+    map.iter()
+        .map(|(glob, value)| {
+            let (metric, max) = value
+                .resolve()
+                .expect("budget values validated at config load");
+            Budget {
+                glob: glob.clone(),
+                metric,
+                max,
+            }
+        })
+        .collect()
 }
 
-/// One `(glob, metric, max)` budget group.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// One resolved `(glob, metric, max)` budget group — the input the `file-length`
+/// rule compiles and matches against. Built from the config map, never deserialized
+/// directly (the wire shape is [`BudgetValue`]).
+#[derive(Debug, Clone)]
 pub struct Budget {
     /// globset pattern matched against repo-relative paths.
     pub glob: String,
@@ -340,8 +199,7 @@ pub struct Budget {
 }
 
 /// The size a `file-length` budget measures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Metric {
     /// True line count (trailing-newline-insensitive) — for human-read code.
     Lines,
@@ -384,8 +242,62 @@ fn default_budgets() -> Vec<Budget> {
     ]
 }
 
-pub(crate) fn default_true() -> bool {
-    true
+/// Resolves rule enablement and the file-length budget list. Ruff-shaped and flat:
+/// a rule is off for a file when it is in `ignore` or in the union of every matching
+/// `[per-file-ignores]` entry. Per-file-ignores globs are compiled once at
+/// construction; a malformed glob is a loud tool error (fail fast), never a no-op.
+pub(crate) struct Resolver<'a> {
+    config: &'a Config,
+    /// Repo-wide disabled rule names.
+    ignore: HashSet<&'a str>,
+    /// One compiled matcher per `[per-file-ignores]` entry, paired with its rules.
+    per_file: Vec<(GlobSet, &'a [String])>,
+}
+
+impl<'a> Resolver<'a> {
+    pub(crate) fn new(config: &'a Config) -> Result<Self> {
+        let ignore = config.ignore.iter().map(String::as_str).collect();
+        let per_file = config
+            .per_file_ignores
+            .iter()
+            .map(|(glob, rules)| {
+                let set = build_glob_set(std::slice::from_ref(glob))
+                    .with_context(|| format!("compiling `per-file-ignores` glob `{glob}`"))?;
+                Ok((set, rules.as_slice()))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self {
+            config,
+            ignore,
+            per_file,
+        })
+    }
+
+    /// True when `rule` runs on `path`: not in `ignore`, and not in the union of
+    /// every matching `[per-file-ignores]` entry's rules.
+    pub(crate) fn is_enabled(&self, rule: &str, path: &str) -> bool {
+        if self.ignore.contains(rule) {
+            return false;
+        }
+        !self
+            .per_file
+            .iter()
+            .any(|(set, rules)| set.is_match(path) && rules.iter().any(|r| r == rule))
+    }
+
+    /// The effective ordered `file-length` budget list (global — no per-path budget
+    /// resolution; per-path scoping is enablement only, via [`Self::is_enabled`]).
+    pub(crate) fn file_length_budgets(&self) -> Vec<Budget> {
+        self.config.file_length.effective_budgets()
+    }
+
+    pub(crate) fn markdown_style(&self) -> &'a MarkdownStyleConfig {
+        &self.config.markdown_style
+    }
+
+    pub(crate) fn descriptive_anchor(&self) -> &'a DescriptiveAnchorConfig {
+        &self.config.descriptive_anchor
+    }
 }
 
 /// The loaded config plus the directory it was found in (the display root).
@@ -430,39 +342,59 @@ impl Config {
 
 impl Config {
     /// Fail fast on any config value a rule would otherwise compile lazily (and
-    /// panic on): every `file-length` budget glob and every `descriptive-anchor`
-    /// pattern, across the base tables and every `[[overrides]]`. A malformed value
-    /// is a clean config error (exit 2) naming the offending key and value — the
-    /// same eager, load-time treatment override `files` globs already get.
+    /// panic on): every budget value and glob, every `descriptive-anchor` pattern,
+    /// and every rule name in `ignore`/`per-file-ignores` (validated against the
+    /// live registry, so there is no hand-kept second list). A bad value is a clean
+    /// config error (exit 2) naming the offending key.
     fn validate(&self) -> Result<()> {
-        let mut budget_tables = vec![&self.file_length];
-        let mut anchor_tables = vec![&self.descriptive_anchor];
-        for ov in &self.overrides {
-            budget_tables.extend(ov.file_length.as_ref());
-            anchor_tables.extend(ov.descriptive_anchor.as_ref());
-        }
-        for flc in budget_tables {
-            for budget in &flc.budget {
-                Glob::new(&budget.glob).with_context(|| {
-                    format!("invalid `file-length` budget glob `{}`", budget.glob)
-                })?;
+        // Budget values (exactly one metric) and their globs.
+        let mut budget_maps: Vec<&IndexMap<String, BudgetValue>> =
+            vec![&self.file_length.extend_budgets];
+        budget_maps.extend(self.file_length.budgets.as_ref());
+        for map in budget_maps {
+            for (glob, value) in map {
+                value
+                    .resolve()
+                    .with_context(|| format!("invalid `file-length` budget for glob `{glob}`"))?;
+                Glob::new(glob)
+                    .with_context(|| format!("invalid `file-length` budget glob `{glob}`"))?;
             }
         }
-        for da in anchor_tables {
-            for pattern in &da.patterns {
-                anchored_pattern(pattern)
-                    .with_context(|| format!("invalid `descriptive-anchor` pattern `{pattern}`"))?;
-            }
+        for pattern in &self.descriptive_anchor.patterns {
+            anchored_pattern(pattern)
+                .with_context(|| format!("invalid `descriptive-anchor` pattern `{pattern}`"))?;
         }
         for glob in &self.status_header.files {
             Glob::new(glob)
                 .with_context(|| format!("invalid `status-header` files glob `{glob}`"))?;
         }
+        // Rule names in `ignore` / `per-file-ignores` must be real rules — a typo
+        // would silently disable nothing, so reject it loudly against the registry.
+        let known: Vec<&str> = crate::rules::rule_names();
+        let check_rule = |rule: &str, whence: &str| -> Result<()> {
+            if !known.contains(&rule) {
+                bail!(
+                    "`{whence}` names unknown rule `{rule}`. Known rules: {}",
+                    known.join(", ")
+                );
+            }
+            Ok(())
+        };
+        for rule in &self.ignore {
+            check_rule(rule, "ignore")?;
+        }
+        for (glob, rules) in &self.per_file_ignores {
+            // A malformed per-file-ignores glob is caught eagerly here too.
+            Glob::new(glob).with_context(|| format!("invalid `per-file-ignores` glob `{glob}`"))?;
+            for rule in rules {
+                check_rule(rule, &format!("per-file-ignores[\"{glob}\"]"))?;
+            }
+        }
         // Only a frozen-aware rule can honor the exemption; a name outside that set
         // would silently do nothing, so reject it loudly (fail fast).
         for rule in &self.status_header.suppresses {
             if !crate::rules::status_header::FROZEN_AWARE_RULES.contains(&rule.as_str()) {
-                anyhow::bail!(
+                bail!(
                     "`status-header.suppresses` names `{rule}`, which is not a frozen-aware rule \
                      (one of: {})",
                     crate::rules::status_header::FROZEN_AWARE_RULES.join(", ")
@@ -490,162 +422,178 @@ mod tests {
 
     #[test]
     fn empty_config_yields_working_defaults() {
+        // A missing/empty file just works: no excludes overridden, the three
+        // built-in budgets in force, fixtures excluded.
         let config: Config = toml::from_str("").unwrap();
-        assert!(config.file_length.enabled);
-        assert!(config.exclude.paths.is_empty());
-        // Defaults still cover code and markdown.
         assert_eq!(config.file_length.effective_budgets().len(), 3);
-    }
-
-    #[test]
-    fn fixtures_are_excluded_by_default() {
-        // Tracked fixture dirs hold deliberately-oversized/odd files (a real
-        // 754-line workflow fixture trips the 700-line default), and every hygiene
-        // tool excludes them — so ailint does too, out of the box.
-        let config = Config::default();
         assert!(
             config
-                .exclude
-                .effective_paths()
+                .effective_excludes()
                 .iter()
-                .any(|p| p.contains("fixtures"))
+                .any(|p| p.contains("fixtures")),
+            "fixtures excluded by default"
         );
     }
 
     #[test]
-    fn user_excludes_extend_the_defaults() {
-        // User paths add to the built-in excludes, they don't replace them — a repo
-        // that excludes one more dir keeps its fixtures protection.
-        let config: Config = toml::from_str("[exclude]\npaths = [\"build/**\"]\n").unwrap();
-        let eff = config.exclude.effective_paths();
-        assert!(eff.iter().any(|p| p == "build/**"), "user path kept");
+    fn exclude_replaces_defaults_extend_preserves_them() {
+        // `exclude` replaces the built-ins (so fixtures protection is dropped unless
+        // relisted); `extend-exclude` adds on top of the effective base. Both coexist.
+        let replaced: Config = toml::from_str("exclude = [\"build/**\"]\n").unwrap();
+        let eff = replaced.effective_excludes();
+        assert_eq!(eff, vec!["build/**"], "exclude replaces, not unions");
+
+        let extended: Config = toml::from_str("extend-exclude = [\"build/**\"]\n").unwrap();
+        let eff = extended.effective_excludes();
+        assert!(
+            eff.iter().any(|p| p == "build/**"),
+            "extend keeps the user path"
+        );
         assert!(
             eff.iter().any(|p| p.contains("fixtures")),
-            "default still applied"
+            "extend preserves the built-in base"
+        );
+
+        let both: Config =
+            toml::from_str("exclude = [\"a/**\"]\nextend-exclude = [\"b/**\"]\n").unwrap();
+        assert_eq!(
+            both.effective_excludes(),
+            vec!["a/**", "b/**"],
+            "both coexist: exclude is the base, extend appends"
         );
     }
 
     #[test]
-    fn unknown_key_is_rejected_loudly() {
+    fn unknown_top_level_key_is_rejected_loudly() {
         let err = toml::from_str::<Config>("[nonsense]\nfoo = 1\n").unwrap_err();
         assert!(err.to_string().contains("unknown field"), "{err}");
     }
 
     #[test]
-    fn use_defaults_false_drops_builtin_budgets() {
-        // A repo that wants to translate an exactly-scoped external gate must be
-        // able to opt out of the generic built-in budgets, not just shadow them.
-        let config: Config = toml::from_str(
-            "[file-length]\nuse-defaults = false\n\
-             [[file-length.budget]]\nglob = \"backend/**/*.py\"\nmetric = \"lines\"\nmax = 700\n",
-        )
-        .unwrap();
-        let budgets = config.file_length.effective_budgets();
-        assert_eq!(budgets.len(), 1, "only the user budget, no defaults");
-        assert_eq!(budgets[0].glob, "backend/**/*.py");
+    fn unknown_rule_in_ignore_is_a_config_error() {
+        // A typo'd rule name in `ignore` would silently disable nothing — rejected
+        // at load, listing the known rules.
+        let config: Config = toml::from_str("ignore = [\"no-such-rule\"]\n").unwrap();
+        let err = config.validate().unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("no-such-rule"), "names the bad rule: {msg}");
+        assert!(msg.contains("code-doc-ref"), "lists known rules: {msg}");
     }
 
     #[test]
-    fn use_defaults_true_is_the_default() {
-        let config: Config = toml::from_str("").unwrap();
-        assert!(config.file_length.use_defaults);
+    fn unknown_rule_in_per_file_ignores_is_a_config_error() {
+        let config: Config =
+            toml::from_str("[per-file-ignores]\n\"src/**\" = [\"nonsense\"]\n").unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(format!("{err:#}").contains("nonsense"), "{err}");
     }
 
     #[test]
-    fn override_disables_a_rule_only_for_matching_files() {
-        // The single per-path mechanism: an override that sets `enabled = false`
-        // for a glob is how you exempt those files from a rule. Files outside the
-        // glob keep the base setting (on).
-        let config: Config = toml::from_str(
-            "[[overrides]]\nfiles = [\"tests/**\", \"src/references.rs\"]\n\
-             [overrides.code-doc-ref]\nenabled = false\n",
-        )
-        .unwrap();
-        let resolver = Resolver::new(&config).unwrap();
-        assert!(!resolver.code_doc_ref("tests/cli.rs"), "matched → off");
-        assert!(!resolver.code_doc_ref("src/references.rs"), "matched → off");
-        assert!(
-            resolver.code_doc_ref("src/engine.rs"),
-            "unmatched → base on"
-        );
+    fn a_budget_with_zero_or_both_metrics_is_a_config_error() {
+        // Exactly one of lines/tokens: neither and both are each rejected at load.
+        let neither: Config = toml::from_str("[file-length.budgets]\n\"**/*.rs\" = {}\n").unwrap();
+        assert!(neither.validate().is_err(), "zero metrics rejected");
+
+        let both: Config =
+            toml::from_str("[file-length.budgets]\n\"**/*.rs\" = { lines = 1, tokens = 1 }\n")
+                .unwrap();
+        assert!(both.validate().is_err(), "both metrics rejected");
     }
 
     #[test]
-    fn later_override_wins_over_earlier() {
-        // Declaration order is the tiebreak, ruff-style: two overrides both match
-        // the same file, and the later one's table replaces the earlier one's.
-        let config: Config = toml::from_str(
-            "[[overrides]]\nfiles = [\"docs/**\"]\n[overrides.code-doc-ref]\nenabled = false\n\
-             [[overrides]]\nfiles = [\"docs/api.md\"]\n[overrides.code-doc-ref]\nenabled = true\n",
-        )
-        .unwrap();
-        let resolver = Resolver::new(&config).unwrap();
-        assert!(
-            resolver.code_doc_ref("docs/api.md"),
-            "later override re-enables"
-        );
-        assert!(
-            !resolver.code_doc_ref("docs/other.md"),
-            "only first matches"
-        );
-    }
-
-    #[test]
-    fn override_replaces_a_whole_rule_table() {
-        // An override table *replaces* the rule's base table (not a field merge):
-        // the override's file-length has no budgets and opts out of defaults, so a
-        // matched file has zero effective budgets while the base still has three.
-        let config: Config = toml::from_str(
-            "[[overrides]]\nfiles = [\"vendor/**\"]\n\
-             [overrides.file-length]\nuse-defaults = false\n",
-        )
-        .unwrap();
-        let resolver = Resolver::new(&config).unwrap();
-        assert_eq!(
-            resolver
-                .file_length("vendor/big.rs")
-                .effective_budgets()
-                .len(),
-            0,
-            "override table replaces base: no budgets"
-        );
-        assert_eq!(
-            resolver
-                .file_length("src/main.rs")
-                .effective_budgets()
-                .len(),
-            3,
-            "unmatched file keeps base budgets"
-        );
-    }
-
-    #[test]
-    fn descriptive_anchor_is_inert_until_configured() {
-        // On by default, but with no patterns it can never fire — safe to ship on.
-        let config = Config::default();
-        assert!(config.descriptive_anchor.enabled);
-        assert!(config.descriptive_anchor.patterns.is_empty());
-    }
-
-    #[test]
-    fn override_with_unknown_rule_key_is_rejected() {
-        // `deny_unknown_fields` on Override guards typo'd rule names inside an override.
+    fn a_budget_with_an_unknown_key_is_rejected() {
+        // `deny_unknown_fields` on the inline value guards a typo'd metric key.
         let err = toml::from_str::<Config>(
-            "[[overrides]]\nfiles = [\"x\"]\n[overrides.nonsense]\nenabled = false\n",
+            "[file-length.budgets]\n\"**/*.rs\" = { lines = 1, max = 2 }\n",
         )
         .unwrap_err();
         assert!(err.to_string().contains("unknown field"), "{err}");
     }
 
     #[test]
-    fn user_budget_is_checked_before_defaults() {
+    fn per_file_ignores_disables_a_rule_only_for_matching_files() {
+        // The per-path mechanism: an entry disables its rules for matching files;
+        // files outside the glob keep the rule on. Multiple matching globs union.
         let config: Config = toml::from_str(
-            "[[file-length.budget]]\nglob = \"**/*.rs\"\nmetric = \"lines\"\nmax = 1000\n",
+            "[per-file-ignores]\n\
+             \"tests/**\" = [\"code-doc-ref\"]\n\
+             \"tests/special.rs\" = [\"bare-path\"]\n",
+        )
+        .unwrap();
+        let resolver = Resolver::new(&config).unwrap();
+        // A file matched by both entries has the *union* disabled.
+        assert!(!resolver.is_enabled("code-doc-ref", "tests/special.rs"));
+        assert!(!resolver.is_enabled("bare-path", "tests/special.rs"));
+        // A file matched by only the first keeps bare-path on.
+        assert!(!resolver.is_enabled("code-doc-ref", "tests/cli.rs"));
+        assert!(resolver.is_enabled("bare-path", "tests/cli.rs"));
+        // An unmatched file keeps everything on.
+        assert!(resolver.is_enabled("code-doc-ref", "src/engine.rs"));
+    }
+
+    #[test]
+    fn ignore_disables_a_rule_repo_wide() {
+        let config: Config = toml::from_str("ignore = [\"bare-path\"]\n").unwrap();
+        let resolver = Resolver::new(&config).unwrap();
+        assert!(!resolver.is_enabled("bare-path", "anywhere.md"));
+        assert!(resolver.is_enabled("link-target", "anywhere.md"));
+    }
+
+    #[test]
+    fn budgets_replaces_the_builtins() {
+        // `budgets` (no `extend-`) drops the three built-in defaults entirely.
+        let config: Config =
+            toml::from_str("[file-length.budgets]\n\"backend/**/*.py\" = { lines = 700 }\n")
+                .unwrap();
+        let budgets = config.file_length.effective_budgets();
+        assert_eq!(budgets.len(), 1, "only the user budget, no defaults");
+        assert_eq!(budgets[0].glob, "backend/**/*.py");
+        assert_eq!(budgets[0].metric, Metric::Lines);
+    }
+
+    #[test]
+    fn extend_budgets_shadows_a_builtin_and_preserves_declaration_order() {
+        // `extend-budgets` are checked before the base (first-match-wins), and their
+        // own declaration order is preserved — the load-bearing ordering guarantee.
+        // Declaration order (`docs/**` first) deliberately differs from sorted order
+        // (`**/*.md` first), so a regression to a sorting map fails this test.
+        let config: Config = toml::from_str(
+            "[file-length.extend-budgets]\n\
+             \"docs/**/*.md\" = { tokens = 200 }\n\
+             \"**/*.md\" = { tokens = 100 }\n",
         )
         .unwrap();
         let budgets = config.file_length.effective_budgets();
-        // User entry leads, then the three defaults.
-        assert_eq!(budgets.len(), 4);
-        assert_eq!(budgets[0].max, 1000);
+        // Two user entries lead, in declaration order, then the three built-ins.
+        assert_eq!(budgets.len(), 5);
+        assert_eq!(budgets[0].glob, "docs/**/*.md", "first user entry first");
+        assert_eq!(budgets[0].max, 200);
+        assert_eq!(budgets[1].glob, "**/*.md", "second user entry second");
+        // The user `**/*.md` shadows the built-in `**/*.md` (8000) because every
+        // extend entry is checked before the base — first match wins.
+        assert_eq!(budgets[1].max, 100);
+    }
+
+    #[test]
+    fn descriptive_anchor_is_inert_until_configured() {
+        // With no patterns the rule can never fire — safe to ship on.
+        let config = Config::default();
+        assert!(config.descriptive_anchor.patterns.is_empty());
+    }
+
+    #[test]
+    fn status_header_suppresses_validation_is_unchanged() {
+        // Only a frozen-aware rule can be suppressed; naming file-length is a loud
+        // config error at load, exactly as before the schema change.
+        let config: Config = toml::from_str(
+            "[status-header]\nfiles = [\"issues/**/*.md\"]\nterminal = [\"done\"]\n\
+             suppresses = [\"file-length\"]\n",
+        )
+        .unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(
+            format!("{err:#}").contains("not a frozen-aware rule"),
+            "{err}"
+        );
     }
 }

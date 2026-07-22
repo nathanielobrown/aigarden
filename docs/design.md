@@ -35,7 +35,7 @@ The load-bearing shape: **one reference-extraction core**, shared by `check` (wh
 
 ## v1 rule catalog
 
-Rules are kebab-case, no numeric codes. Every rule is on by default and individually toggleable.
+Rules are kebab-case, no numeric codes. Every rule is on by default and individually toggleable — repo-wide via the top-level `ignore` list, or per path via `[per-file-ignores]`.
 
 **Reference integrity** — the six layers of the link gate, run together and all reported:
 
@@ -48,7 +48,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 **Size budgets:**
 
-- `file-length` — a file stays under its budget. The metric is chosen per file category, because "length" means different things: code files budget **lines** (human readability), while always-loaded guidance files and doc prose budget **chars/tokens** (context cost, ~4 chars/token). Config declares `(glob, metric, max)` groups. Line counting is true line count, not a newline count — a file missing its trailing newline is not silently one line short
+- `file-length` — a file stays under its budget. The metric is chosen per file category, because "length" means different things: code files budget **lines** (human readability), while always-loaded guidance files and doc prose budget **chars/tokens** (context cost, ~4 chars/token). Config declares a `"glob" = { lines | tokens = N }` budget map. Line counting is true line count, not a newline count — a file missing its trailing newline is not silently one line short
 
 **Markdown style:**
 
@@ -77,26 +77,20 @@ Each rule carries its own contract — a description, config keys with defaults,
 
 ## Config model
 
-`ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable via its own table, per-rule tables for thresholds. The walker already honors `.gitignore`; config `exclude` adds tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools.
+`ailint.toml` at the repo root, ruff-style: strong defaults, an empty file mostly works, every rule toggleable, per-rule tables for options. The walker already honors `.gitignore`; the top-level `exclude`/`extend-exclude` globs add tool-level path exclusions **defined once** and shared by every rule and by `mv` — the walked-file universe, the single home for what used to be a fixtures-exemption reimplemented in three separate tools. `exclude` **replaces** the built-in defaults (`**/fixtures/**`); `extend-exclude` **adds** to the effective base. Both may coexist, and both mirror ruff.
 
 ```toml
-# ailint.toml — everything on by default; override only what you need.
+# ailint.toml — everything on by default; change only what you need.
 
-[exclude]
-paths = ["**/fixtures/**", ".claude/worktrees/**"]  # dropped from the walk entirely
+extend-exclude = [".claude/worktrees/**"]  # added on top of the built-in **/fixtures/**
 
-# file-length: one budget group per file category, each with its own metric.
-[[file-length.budget]]
-glob = "**/*.rs"
-metric = "lines"
-max = 700
-[[file-length.budget]]
-glob = "{CLAUDE,AGENTS}.md"
-metric = "tokens"   # ~4 chars/token
-max = 4000
+# Turn a rule off repo-wide.
+ignore = ["cog-fresh"]
 
-[link-case]
-enabled = true      # every rule can be switched off the same way
+# file-length: a "glob" = { lines | tokens = N } map, first matching glob wins.
+[file-length.budgets]
+"**/*.rs" = { lines = 700 }
+"{CLAUDE,AGENTS}.md" = { tokens = 4000 }   # ~4 chars/token
 
 [markdown-style]
 reflow = true       # rumdl rules surface under ailint keys
@@ -113,30 +107,25 @@ terminal = ["done", "wontfix", "implemented", "superseded"]  # frozen ⇒ exempt
 suppresses = ["bare-path", "link-case", "descriptive-anchor"]  # only these are allowed
 ```
 
-Unknown keys are rejected (a typo fails loudly at startup, never a silent no-op). `file-length` budgets resolve **user-first, then built-in defaults, first matching glob wins** — a user entry both overrides a default glob and extends coverage to new globs without re-listing the defaults. The built-in defaults live in `config.rs` (generic, no repo-specific globs): guidance files (`{CLAUDE,AGENTS,GEMINI,SKILL}.md`) and markdown budget tokens, source files budget lines; the cap is inclusive (`value > max` is a finding).
+Unknown keys are rejected (a typo fails loudly at startup, never a silent no-op), and every budget value must set **exactly one** of `lines`/`tokens`. A budget value is an inline table (`{ lines = N }` or `{ tokens = N }`), so `metric` and `max` fuse into one key. `file-length` budgets resolve in **declaration order, first matching glob wins**: `extend-budgets` entries are checked before the effective base — `budgets` if set, else the built-in defaults — so a user glob shadows a default and extends coverage to new globs without re-listing the base. The built-in defaults live in `config.rs` (generic, no repo-specific globs): guidance files (`{CLAUDE,AGENTS,GEMINI,SKILL}.md`) and markdown budget tokens, source files budget lines; the cap is inclusive (`value > max` is a finding).
 
-### Per-path overrides
+### Per-file ignores
 
-`exclude` decides which files are *walked at all*; **overrides** decide how a rule behaves on a subset of the walked files. There is one mechanism, ruff/ESLint-style, and no separate per-rule `exclude` key — disabling a rule for a glob *is* how you exempt those files from it:
+`exclude` decides which files are *walked at all*; **`ignore` and `[per-file-ignores]`** decide which rules run on the walked files. There is no separate per-rule `exclude` key — disabling a rule for a glob *is* how you exempt those files from it:
 
 ```toml
+# Off everywhere.
+ignore = ["descriptive-anchor"]
+
 # The docstrings, test fixtures, and snapshots here cite example doc paths on
 # purpose. Turn off code-doc-ref for them — every other rule still sees them.
-[[overrides]]
-files = ["tests/**", "src/references.rs"]
-[overrides.code-doc-ref]
-enabled = false
-
-# Vendored code: no length budget, and no bare-path checking.
-[[overrides]]
-files = ["vendor/**"]
-[overrides.file-length]
-use-defaults = false
-[overrides.bare-path]
-enabled = false
+[per-file-ignores]
+"tests/**" = ["code-doc-ref"]
+"src/references.rs" = ["code-doc-ref"]
+"vendor/**" = ["bare-path", "file-length"]  # a matched file gets no length check either
 ```
 
-**Precedence** matches ruff exactly: **base config < overrides, in declaration order (later wins)**. A file's effective setting for a rule starts at the base table, then every `[[overrides]]` block whose `files` glob matches replaces that rule's table — so the *last* matching override wins, and any override beats the base. An override **replaces a whole rule table**, it does not merge fields: `[overrides.file-length]` with no budgets and `use-defaults = false` gives matched files *zero* budgets, regardless of the base budgets. Only the rule tables an override actually names are affected; unlisted rules keep their base settings. A [`Resolver`](../src/config.rs) applies this precedence in one place, and every rule reads a file's effective config through it, so the rule bodies never re-implement path scoping.
+`ignore` disables a rule across the whole repo. `[per-file-ignores]` maps a glob to a rule list; for a given file, the **union** of every matching entry's rules is disabled — the semantics are ruff's, **order-free** (two entries that both match a file simply combine, there is no precedence or re-enable). This applies to *every* rule: a file matched for `file-length` gets no length check, and a doc matched for `status-header` is exempt from the header requirement. A [`Resolver`](../src/config.rs) compiles the globs once and answers `is_enabled(rule, path)` in one place, so the rule bodies never re-implement path scoping. Options that remain per-rule (`reflow`, `patterns`, budgets, the status vocabulary) are **global** — read straight from the rule's table, not resolved per path.
 
 ## Cogs
 

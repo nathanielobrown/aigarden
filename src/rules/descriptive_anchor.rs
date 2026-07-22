@@ -13,7 +13,6 @@
 //! - **descriptive text that merely contains the ID** — the whole-text regex match
 //!   means `[ADR-0026 — gated publication]` never matches and is never flagged
 
-use std::collections::HashMap;
 use std::ops::Range;
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
@@ -22,7 +21,7 @@ use regex::Regex;
 use crate::config::DescriptiveAnchorConfig;
 use crate::diagnostic::{Diagnostic, Span};
 use crate::references::is_markdown;
-use crate::rules::{ConfigKey, ENABLED_KEY, Explanation, Rule, RuleContext};
+use crate::rules::{ConfigKey, Explanation, Rule, RuleContext};
 
 pub(crate) struct DescriptiveAnchor;
 
@@ -39,54 +38,33 @@ impl Rule for DescriptiveAnchor {
 `T4`) reads badly when the link is the sentence's subject. The rule asks for descriptive anchor \
 text; the ID can stay in the link target. A parenthetical citation and text that merely contains \
 the ID are both allowed. Config-driven and inert until `patterns` is set.",
-            config: &[
-                ENABLED_KEY,
-                ConfigKey {
-                    key: "patterns",
-                    default: "none (rule inert)",
-                    purpose: "regexes for stable-ID shapes, e.g. [\"ADR-\\\\d+\", \"T\\\\d+\"]; \
+            config: &[ConfigKey {
+                key: "patterns",
+                default: "none (rule inert)",
+                purpose: "regexes for stable-ID shapes, e.g. [\"ADR-\\\\d+\", \"T\\\\d+\"]; \
 the rule fires only once set",
-                },
-            ],
+            }],
             example: "link text `ADR-0026` is a bare stable ID — give it descriptive anchor text",
             fix: None,
             config_gated: true,
         }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        // Compile each distinct config table's patterns once, keyed by the table's
-        // address (the resolver hands back the very same reference), so overrides
-        // sharing a table don't recompile. A bad regex is a loud config error —
-        // patterns are author-controlled in ailint.toml.
-        let mut compiled: HashMap<usize, Vec<Regex>> = HashMap::new();
-        let mut register = |cfg: &DescriptiveAnchorConfig| {
-            compiled
-                .entry(std::ptr::from_ref(cfg) as usize)
-                .or_insert_with(|| compile(cfg));
-        };
-        register(&ctx.config.descriptive_anchor);
-        for ov in &ctx.config.overrides {
-            if let Some(cfg) = &ov.descriptive_anchor {
-                register(cfg);
-            }
+        // Patterns are a global option, validated at config load; compile once. With
+        // no patterns the rule is inert.
+        let patterns = compile(ctx.resolver.descriptive_anchor());
+        if patterns.is_empty() {
+            return Vec::new();
         }
-
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| is_markdown(&f.rel_path)) {
-            let cfg = ctx.resolver.descriptive_anchor(&file.rel_path);
-            if !cfg.enabled {
-                continue;
-            }
-            // A frozen (terminal-status) doc's historical stable-ID citations are
-            // exempt, like its bare paths and cased links.
-            if ctx.frozen_suppressed(self.name(), &file.rel_path) {
-                continue;
-            }
-            let patterns = &compiled[&(std::ptr::from_ref(cfg) as usize)];
-            if patterns.is_empty() {
-                continue;
-            }
-            for (span, text) in bare_id_links(&file.content, patterns) {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path)
+                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
+                // A frozen (terminal-status) doc's historical stable-ID citations are
+                // exempt, like its bare paths and cased links.
+                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+        }) {
+            for (span, text) in bare_id_links(&file.content, &patterns) {
                 diagnostics.push(Diagnostic {
                     rule: self.name(),
                     path: file.rel_path.clone(),

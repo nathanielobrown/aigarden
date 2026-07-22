@@ -9,7 +9,7 @@
 use crate::cog;
 use crate::diagnostic::Diagnostic;
 use crate::references::is_markdown;
-use crate::rules::{ENABLED_ONLY, Explanation, Rule, RuleContext};
+use crate::rules::{Explanation, NO_CONFIG, Rule, RuleContext};
 
 pub(crate) struct CogFresh;
 
@@ -25,7 +25,7 @@ impl Rule for CogFresh {
             checks: "A generated cog block (`<!-- ailint:cog … -->` … `<!-- ailint:end -->`) \
 matches what its generator produces now. Regenerate stale blocks with `ailint cog --write`. A \
 failing generator becomes a finding here rather than aborting the whole check run.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "cog block is stale — its generator now produces different output",
             fix: None,
             config_gated: false,
@@ -33,11 +33,9 @@ failing generator becomes a finding here rather than aborting the whole check ru
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.cog_fresh(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
+        }) {
             let root = cog::repo_root(file.abs_path.parent().unwrap_or(&file.abs_path), ctx.root);
             for finding in cog::evaluate(&file.content, &file.abs_path, &root) {
                 diagnostics.push(cog::to_diagnostic(&file.rel_path, &file.content, &finding));

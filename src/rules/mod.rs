@@ -22,9 +22,9 @@ mod rumdl_rules;
 pub(crate) mod status_header;
 
 /// Read-only view of the repository handed to every rule. Carries the whole walked
-/// file set plus a [`Resolver`]; a rule reads a file's effective config through the
-/// resolver and self-gates per file, so glob-scoped [`crate::config::Override`]s
-/// (including disabling a rule for a path) are honored uniformly.
+/// file set plus a [`Resolver`]; a rule reads global options through the resolver and
+/// self-gates each file with [`Resolver::is_enabled`], so `ignore` and
+/// `[per-file-ignores]` (disabling a rule for a path) are honored uniformly.
 pub(crate) struct RuleContext<'a> {
     /// Every walked, globally-non-excluded file with its content already read.
     pub(crate) files: &'a [SourceFile],
@@ -69,9 +69,9 @@ impl<'a> RuleContext<'a> {
     }
 }
 
-/// A lint rule: named, self-describing, all-reporting. Enablement is per file, not
-/// per rule — a rule iterates [`RuleContext::files`] and skips any file its
-/// resolver reports disabled, so overrides can turn a rule off for one glob.
+/// A lint rule: named, self-describing, all-reporting. Enablement is per file — a
+/// rule iterates [`RuleContext::files`] and skips any file its resolver reports
+/// disabled, so `ignore` / `[per-file-ignores]` can turn a rule off for a glob.
 pub(crate) trait Rule: Sync {
     /// Stable kebab-case identifier used in config keys and diagnostics.
     fn name(&self) -> &'static str;
@@ -91,7 +91,8 @@ pub(crate) struct Explanation {
     /// What the rule checks and why it matters, in prose.
     pub(crate) checks: &'static str,
     /// Config keys the rule reads under its own `[<name>]` table, each with its
-    /// default and purpose. Every rule lists at least [`ENABLED_KEY`].
+    /// default and purpose. Empty for a rule with no options (toggled only via the
+    /// top-level `ignore` / `[per-file-ignores]`).
     pub(crate) config: &'static [ConfigKey],
     /// A representative finding message, so `explain` shows the shape of a hit.
     pub(crate) example: &'static str,
@@ -123,15 +124,9 @@ pub(crate) struct ConfigKey {
     pub(crate) purpose: &'static str,
 }
 
-/// The `enabled` toggle every rule shares — defined once (DRY across all rules).
-pub(crate) const ENABLED_KEY: ConfigKey = ConfigKey {
-    key: "enabled",
-    default: "true",
-    purpose: "set false to turn the rule off; scope it per-path with [[overrides]]",
-};
-
-/// The config surface of a rule whose only key is `enabled` — the reference rules.
-pub(crate) const ENABLED_ONLY: &[ConfigKey] = &[ENABLED_KEY];
+/// The config surface of a rule with no options of its own — the reference rules.
+/// Toggle these with the top-level `ignore` / `[per-file-ignores]`.
+pub(crate) const NO_CONFIG: &[ConfigKey] = &[];
 
 /// All registered rules. The single list the engine iterates and `rules` prints.
 pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
@@ -148,4 +143,10 @@ pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
         Box::new(descriptive_anchor::DescriptiveAnchor),
         Box::new(status_header::StatusHeader),
     ]
+}
+
+/// Every registered rule's name — the single source for validating config rule
+/// references (`ignore`, `[per-file-ignores]`) against real rules.
+pub(crate) fn rule_names() -> Vec<&'static str> {
+    registry().iter().map(|r| r.name()).collect()
 }

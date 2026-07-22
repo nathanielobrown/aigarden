@@ -24,10 +24,9 @@ use std::collections::HashSet;
 
 use serde::Deserialize;
 
-use crate::config::default_true;
 use crate::diagnostic::Diagnostic;
 use crate::references::is_markdown;
-use crate::rules::{ConfigKey, ENABLED_KEY, Explanation, Rule, RuleContext};
+use crate::rules::{ConfigKey, Explanation, Rule, RuleContext};
 use crate::walk::{SourceFile, build_glob_set};
 
 /// `status-header`: the "frozen docs" contract. A tracker doc (an issue/plan)
@@ -39,12 +38,11 @@ use crate::walk::{SourceFile, build_glob_set};
 /// it (fail loud, never a silent skip).
 ///
 /// **Inert until configured**: with no `files` the whole mechanism does nothing, so
-/// it is safe on by default. Not per-path overridable — it is a repo-wide contract.
+/// it is safe on by default. A repo-wide contract, though `[per-file-ignores]` can
+/// exempt a specific doc from the header requirement.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct StatusHeaderConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
     /// Globs (repo-relative) of the docs under the contract, e.g.
     /// `["issues/**/*.md", "plans/*.md"]`. A `README.md` under a matched glob is
     /// never treated as a tracked item. Empty ⇒ the mechanism is inert.
@@ -74,7 +72,6 @@ pub struct StatusHeaderConfig {
 impl Default for StatusHeaderConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
             files: Vec::new(),
             header: default_status_header(),
             live: Vec::new(),
@@ -94,10 +91,11 @@ impl StatusHeaderConfig {
             .map(String::as_str)
             .collect()
     }
-    /// True when the mechanism actually runs (enabled and given files to scan).
+    /// True when the mechanism actually runs (given files to scan). Inert with no
+    /// `files`; a repo turns the rule off entirely via top-level `ignore` instead.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.enabled && !self.files.is_empty()
+        !self.files.is_empty()
     }
 }
 
@@ -244,9 +242,8 @@ impl Rule for StatusHeader {
 header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is \
 reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its \
 path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` \
-is set; not per-path overridable — it is a repo-wide contract.",
+is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc.",
             config: &[
-                ENABLED_KEY,
                 ConfigKey {
                     key: "files",
                     default: "none (rule inert)",
@@ -285,6 +282,10 @@ bare-path, link-case, descriptive-anchor are accepted",
         let vocab = cfg.vocabulary().join(", ");
         let mut diagnostics = Vec::new();
         for (file, class) in scanned(ctx.files, cfg) {
+            // A doc exempted via `[per-file-ignores]` gets no header requirement.
+            if !ctx.resolver.is_enabled(self.name(), &file.rel_path) {
+                continue;
+            }
             let message = match class {
                 StatusClass::Live | StatusClass::Terminal => continue,
                 StatusClass::Missing => {
@@ -321,7 +322,6 @@ mod tests {
     /// A mycelia-shaped config: real issue/plan globs and vocabulary.
     fn cfg() -> StatusHeaderConfig {
         StatusHeaderConfig {
-            enabled: true,
             files: vec!["issues/**/*.md".to_string(), "plans/*.md".to_string()],
             header: "Status".to_string(),
             live: [

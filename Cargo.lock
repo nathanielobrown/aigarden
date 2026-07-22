@@ -20,6 +20,7 @@ dependencies = [
  "clap",
  "globset",
  "ignore",
+ "indexmap",
  "insta",
  "insta-cmd",
  "pulldown-cmark",

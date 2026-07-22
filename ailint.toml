@@ -4,19 +4,15 @@
 # codebase cites on purpose — the grammar docstrings, the test fixtures, and the
 # committed snapshots all name illustrative paths under a `docs/` tree that does
 # not exist in this repo. Rather than a global exclude (which would blind every
-# rule to those files), a
-# single override disables just `code-doc-ref` for the files whose whole job is to
-# illustrate or capture reference syntax. Every other rule still sees them.
-[[overrides]]
-files = [
-  "tests/**",                        # fixtures + committed snapshots: example paths by design
-  "src/references.rs",               # the reference grammars, documented with example paths
-  "src/rules/reference_rules.rs",    # each rule's `explain()` example finding cites a sample doc path
-  "src/rules/resolve.rs",            # path-resolution helpers, ditto
-  "src/rules/descriptive_anchor.rs", # docstring + tests cite example `docs/adrs/*.md` links
-  "src/rules/status_header.rs",      # tests cite example `issues/*.md`, `plans/*.md` status docs
-  "src/config.rs",                   # config docstrings show example budget/override paths
-  "src/cli.rs",                      # `--config` help text names an example path
-]
-[overrides.code-doc-ref]
-enabled = false
+# rule to those files), per-file-ignores disables just `code-doc-ref` for the
+# files whose whole job is to illustrate or capture reference syntax. Every other
+# rule still sees them.
+[per-file-ignores]
+"tests/**" = ["code-doc-ref"]                        # fixtures + committed snapshots: example paths by design
+"src/references.rs" = ["code-doc-ref"]               # the reference grammars, documented with example paths
+"src/rules/reference_rules.rs" = ["code-doc-ref"]    # each rule's `explain()` example finding cites a sample doc path
+"src/rules/resolve.rs" = ["code-doc-ref"]            # path-resolution helpers, ditto
+"src/rules/descriptive_anchor.rs" = ["code-doc-ref"] # docstring + tests cite example `docs/adrs/*.md` links
+"src/rules/status_header.rs" = ["code-doc-ref"]      # tests cite example `issues/*.md`, `plans/*.md` status docs
+"src/config.rs" = ["code-doc-ref"]                   # config docstrings show example budget paths
+"src/cli.rs" = ["code-doc-ref"]                      # `--config` help text names an example path

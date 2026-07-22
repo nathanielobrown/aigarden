@@ -73,7 +73,7 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
     // Walk the tree as it stands after the move (dst present, src gone).
     let files = walk::walk(
         &[PathBuf::from(".")],
-        &loaded.config.exclude.effective_paths(),
+        &loaded.config.effective_excludes(),
         &cwd,
     )?;
     let (files_touched, refs_rewritten) =
@@ -91,7 +91,7 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
     // Verify-after: re-read the tree and re-run only the reference-integrity rules.
     let verified = walk::walk(
         &[PathBuf::from(".")],
-        &loaded.config.exclude.effective_paths(),
+        &loaded.config.effective_excludes(),
         &cwd,
     )?;
     let residue = engine::check_with(&verified, &loaded.config, &cwd, |name| {

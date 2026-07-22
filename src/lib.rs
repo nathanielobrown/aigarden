@@ -70,7 +70,7 @@ fn run_cog(cli: &Cli, write: bool, check: bool, out: &mut impl Write) -> Result<
     let loaded = Config::discover(cli.config.as_deref(), &cwd)?;
     let files = walk::walk(
         &[PathBuf::from(".")],
-        &loaded.config.exclude.effective_paths(),
+        &loaded.config.effective_excludes(),
         &cwd,
     )?;
     // `check`/`write` are a required, mutually-exclusive pair (enforced by clap).
@@ -91,7 +91,7 @@ fn run_check(cli: &Cli, paths: &[PathBuf], fix: bool, out: &mut impl Write) -> R
     } else {
         paths.to_vec()
     };
-    let mut files = walk::walk(&scan_paths, &loaded.config.exclude.effective_paths(), &cwd)?;
+    let mut files = walk::walk(&scan_paths, &loaded.config.effective_excludes(), &cwd)?;
     if files.is_empty() {
         // Fail fast: zero files under the requested paths is a misconfiguration, not a clean pass.
         bail!("no files found under {scan_paths:?}");
@@ -145,6 +145,12 @@ fn explain_rule(name: &str, out: &mut impl Write) -> Result<()> {
     writeln!(out, "Status: {}", explanation.status())?;
     writeln!(out, "\nWhat it checks\n  {}", explanation.checks)?;
     writeln!(out, "\nConfig [{}]", rule.name())?;
+    if explanation.config.is_empty() {
+        writeln!(
+            out,
+            "  no options \u{2014} toggle with top-level `ignore` or `[per-file-ignores]`"
+        )?;
+    }
     for key in explanation.config {
         writeln!(
             out,

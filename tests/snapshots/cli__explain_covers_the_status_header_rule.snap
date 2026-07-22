@@ -13,10 +13,9 @@ status-header — every issue/plan doc carries a recognized `**Status:**` header
 Status: config-gated
 
 What it checks
-  Every doc matching `[status-header] files` carries a `**Status:** <value>` header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` is set; not per-path overridable — it is a repo-wide contract.
+  Every doc matching `[status-header] files` carries a `**Status:** <value>` header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc.
 
 Config [status-header]
-  enabled (default: true) — set false to turn the rule off; scope it per-path with [[overrides]]
   files (default: none (rule inert)) — globs of docs under the contract, e.g. ["issues/**/*.md", "plans/*.md"]; a README under a matched glob is never a tracked item
   header (default: "Status") — the bold label parsed as `**<header>:** <value>`
   live (default: none) — live (non-frozen) status keywords, e.g. ["open", "active"]

@@ -64,8 +64,8 @@ stand-in.
 The remaining category-3 items — 192 `code-doc-ref` and 6 `reports` FPs — are suppressed by the
 tuned config, **not** a code fix. At run time a faithful mapping needed *per-rule* scoping ailint
 lacked (a global exclude would also drop those files from `file-length`); that scoping has since
-shipped as [`[[overrides]]`](design.md#per-path-overrides), so the tuned config now disables
-`code-doc-ref` for the fixture-bearing files via an override rather than a workaround (see
+shipped as [`[per-file-ignores]`](design.md#per-file-ignores), so the tuned config now disables
+`code-doc-ref` for the fixture-bearing files via a per-file ignore rather than a workaround (see
 [Gaps closed since the run](#gaps-closed-since-the-run)).
 
 ## Wins (category 2)
@@ -99,8 +99,8 @@ Four gaps this run named have shipped:
   residual false positive
 
 - **Per-rule scoping (was Med, 192 findings masked by a workaround)** — shipped as
-  [`[[overrides]]`](design.md#per-path-overrides): a glob-scoped, ruff-style mechanism where an
-  override replaces a rule's whole table for matching files, base < overrides, later wins. Disabling
+  [`[per-file-ignores]`](design.md#per-file-ignores): a glob-scoped, ruff-style mechanism where a
+  file's disabled rules are the union of every matching glob's rule list, order-free. Disabling
   `code-doc-ref` for the fixture-bearing files is now a first-class config, not a global-exclude
   workaround. ailint dogfoods it — see this repo's `ailint.toml`
 - **`descriptive-anchor` (was Med, guards 1189 mycelia links)** — shipped as a config-driven rule

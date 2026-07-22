@@ -22,9 +22,9 @@ pub(crate) fn check(files: &[SourceFile], config: &Config, root: &Path) -> Resul
 /// verify-after step uses this to re-run just the reference-integrity rules.
 ///
 /// Every rule runs over one shared [`RuleContext`]; enablement is per file, decided
-/// by the [`Resolver`] from base config plus glob-scoped overrides. Building the
-/// resolver compiles each override's globs — a malformed glob is a loud tool error
-/// (fail fast), never a silent no-op.
+/// by the [`Resolver`] from `ignore` plus `[per-file-ignores]`. Building the resolver
+/// compiles each per-file-ignores glob — a malformed glob is a loud tool error (fail
+/// fast), never a silent no-op.
 pub(crate) fn check_with(
     files: &[SourceFile],
     config: &Config,

@@ -5,7 +5,7 @@
 //! diagnostics. Nothing else in the tree touches rumdl types.
 
 use crate::diagnostic::{Diagnostic, Span};
-use crate::rules::{ConfigKey, ENABLED_KEY, ENABLED_ONLY, Explanation, Rule, RuleContext};
+use crate::rules::{ConfigKey, Explanation, NO_CONFIG, Rule, RuleContext};
 use crate::rumdl_adapter::{RumdlFinding, anchor_rules, char_pos_to_byte, run, style_rules};
 
 /// Map one rumdl warning to an ailint diagnostic, converting its character
@@ -41,7 +41,7 @@ impl Rule for AnchorResolves {
             checks: "A markdown link `#fragment` points at a heading that exists — in the same \
 file, or for `other.md#frag` in the linked file. Backed by rumdl MD051, which owns the \
 heading-slug long tail.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "Link fragment '#setup' does not have a corresponding heading",
             fix: None,
             config_gated: false,
@@ -53,7 +53,7 @@ heading-slug long tail.",
         // findings on files an override turned off.
         run(ctx.files.iter(), &anchor_rules())
             .iter()
-            .filter(|finding| ctx.resolver.anchor_resolves(&finding.file.rel_path))
+            .filter(|finding| ctx.resolver.is_enabled(self.name(), &finding.file.rel_path))
             .map(|finding| to_diagnostic(self.name(), finding, finding.warning.message.clone()))
             .collect()
     }
@@ -77,15 +77,12 @@ impl Rule for MarkdownStyle {
             checks: "Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, \
 multiple blank lines, a single final newline, and opt-in paragraph reflow. Each message is \
 prefixed with the originating rumdl rule id.",
-            config: &[
-                ENABLED_KEY,
-                ConfigKey {
-                    key: "reflow",
-                    default: "false",
-                    purpose: "normalize each paragraph to one line (rumdl MD013); off because \
+            config: &[ConfigKey {
+                key: "reflow",
+                default: "false",
+                purpose: "normalize each paragraph to one line (rumdl MD013); off because \
 it rewrites prose",
-                },
-            ],
+            }],
             example: "[MD009] Trailing whitespace",
             fix: Some(
                 "`ailint check --fix` rewrites each file in place: strips trailing spaces, \
@@ -96,31 +93,21 @@ reflows paragraphs when reflow = true).",
         }
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        // Style rules are single-file, but the rule *set* depends on each file's
-        // resolved `reflow`, so partition the enabled files by reflow and run each
-        // group with its own rule set. Files an override disabled are dropped.
-        let mut reflow_on: Vec<&crate::walk::SourceFile> = Vec::new();
-        let mut reflow_off: Vec<&crate::walk::SourceFile> = Vec::new();
-        for file in ctx.files {
-            let cfg = ctx.resolver.markdown_style(&file.rel_path);
-            if !cfg.enabled {
-                continue;
-            }
-            if cfg.reflow {
-                reflow_on.push(file);
-            } else {
-                reflow_off.push(file);
-            }
-        }
+        // `reflow` is a global option; the rule set is the same for every file, so
+        // run the whole enabled set through one pass. Files disabled by `ignore` /
+        // `[per-file-ignores]` are dropped.
+        let reflow = ctx.resolver.markdown_style().reflow;
+        let group = ctx
+            .files
+            .iter()
+            .filter(|f| ctx.resolver.is_enabled(self.name(), &f.rel_path));
         let mut diagnostics = Vec::new();
-        for (reflow, group) in [(true, reflow_on), (false, reflow_off)] {
-            for finding in &run(group.into_iter(), &style_rules(reflow)) {
-                let message = match &finding.warning.rule_name {
-                    Some(id) => format!("[{id}] {}", finding.warning.message),
-                    None => finding.warning.message.clone(),
-                };
-                diagnostics.push(to_diagnostic(self.name(), finding, message));
-            }
+        for finding in &run(group, &style_rules(reflow)) {
+            let message = match &finding.warning.rule_name {
+                Some(id) => format!("[{id}] {}", finding.warning.message),
+                None => finding.warning.message.clone(),
+            };
+            diagnostics.push(to_diagnostic(self.name(), finding, message));
         }
         diagnostics
     }

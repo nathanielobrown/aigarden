@@ -16,7 +16,6 @@ What it checks
   Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, multiple blank lines, a single final newline, and opt-in paragraph reflow. Each message is prefixed with the originating rumdl rule id.
 
 Config [markdown-style]
-  enabled (default: true) — set false to turn the rule off; scope it per-path with [[overrides]]
   reflow (default: false) — normalize each paragraph to one line (rumdl MD013); off because it rewrites prose
 
 Example finding

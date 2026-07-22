@@ -5,14 +5,12 @@
 //! **tokens** (`ceil(chars/4)`). Both counts read the raw content so a missing
 //! trailing newline can't undercount (the `wc -l` bug this replaces).
 
-use std::collections::HashMap;
-
 use globset::{Glob, GlobMatcher};
 use rayon::prelude::*;
 
-use crate::config::{Budget, FileLengthConfig, Metric};
+use crate::config::{Budget, Metric};
 use crate::diagnostic::Diagnostic;
-use crate::rules::{ConfigKey, ENABLED_KEY, Explanation, Rule, RuleContext};
+use crate::rules::{ConfigKey, Explanation, Rule, RuleContext};
 
 pub(crate) struct FileLength;
 
@@ -32,17 +30,17 @@ Code is budgeted in readable lines; always-loaded guidance and prose in context 
 (ceil(chars/4)). Built-in budgets: CLAUDE/AGENTS/GEMINI/SKILL.md at 4000 tokens, other *.md \
 at 8000 tokens, source files at 700 lines.",
             config: &[
-                ENABLED_KEY,
                 ConfigKey {
-                    key: "budget",
+                    key: "budgets",
                     default: "the built-in globs above",
-                    purpose: "[[file-length.budget]] entries (glob, metric = lines|tokens, max), \
-checked before the defaults; first match wins",
+                    purpose: "a `\"glob\" = { lines | tokens = N }` map that replaces the \
+built-in budgets; first matching glob wins",
                 },
                 ConfigKey {
-                    key: "use-defaults",
-                    default: "true",
-                    purpose: "set false to run only your budgets, dropping the built-in globs",
+                    key: "extend-budgets",
+                    default: "none",
+                    purpose: "same shape, checked before the effective base so a user glob \
+shadows a default and adds new coverage",
                 },
             ],
             example: "812 lines exceeds the budget of 700 for `**/*.{rs,py,ts,...}`",
@@ -52,37 +50,22 @@ checked before the defaults; first match wins",
     }
 
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        // A file's budgets depend on which `file-length` table an override resolves
-        // it to. Compile each *distinct* table once (keyed by its address — the
-        // resolver hands back the very same reference), so overrides that share a
-        // table don't recompile, and matching stays first-match within a table.
-        let mut compiled: HashMap<usize, Vec<CompiledBudget>> = HashMap::new();
-        let mut register = |flc: &FileLengthConfig| {
-            compiled
-                .entry(std::ptr::from_ref(flc) as usize)
-                .or_insert_with(|| {
-                    flc.effective_budgets()
-                        .into_iter()
-                        .map(CompiledBudget::compile)
-                        .collect::<Result<_, _>>()
-                        .expect("budget globs validated at config load")
-                });
-        };
-        register(&ctx.config.file_length);
-        for ov in &ctx.config.overrides {
-            if let Some(flc) = &ov.file_length {
-                register(flc);
-            }
-        }
+        // Budgets are global (first match wins); per-path scoping is enablement only.
+        // Compile the effective list once — globs are validated at config load.
+        let budgets: Vec<CompiledBudget> = ctx
+            .resolver
+            .file_length_budgets()
+            .into_iter()
+            .map(CompiledBudget::compile)
+            .collect::<Result<_, _>>()
+            .expect("budget globs validated at config load");
 
         ctx.files
             .par_iter()
             .filter_map(|file| {
-                let flc = ctx.resolver.file_length(&file.rel_path);
-                if !flc.enabled {
+                if !ctx.resolver.is_enabled(self.name(), &file.rel_path) {
                     return None;
                 }
-                let budgets = &compiled[&(std::ptr::from_ref(flc) as usize)];
                 let budget = budgets
                     .iter()
                     .find(|b| b.matcher.is_match(&file.rel_path))?;

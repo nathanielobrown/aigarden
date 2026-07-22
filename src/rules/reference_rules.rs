@@ -13,7 +13,7 @@ use crate::rules::resolve::{
     case_exact, is_checkable_local, is_gitignored, resolve_existing, resolve_from_file,
     resolve_from_root,
 };
-use crate::rules::{ENABLED_ONLY, Explanation, Rule, RuleContext};
+use crate::rules::{Explanation, NO_CONFIG, Rule, RuleContext};
 use crate::walk::SourceFile;
 
 /// Build a spanned diagnostic for a reference finding.
@@ -49,7 +49,7 @@ impl Rule for LinkTarget {
             checks: "A relative markdown link or image target resolves to a file on disk, from \
 the linking file's own directory. An extensionless wiki-style target also tries a `.md` \
 sibling. External URLs, absolute paths, and pure `#anchors` are left alone.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "link target `../guide.md` does not exist",
             fix: None,
             config_gated: false,
@@ -57,11 +57,9 @@ sibling. External URLs, absolute paths, and pure `#anchors` are left alone.",
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.link_target(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
+        }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if !matches!(
                     reference.kind,
@@ -105,7 +103,7 @@ impl Rule for LinkCase {
             checks: "A link target that exists but under a different case — the macOS \
 case-insensitivity trap that opens locally yet 404s on case-sensitive CI. Only existing \
 targets are flagged, so a genuine 404 stays link-target's alone (no double report).",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "link target `docs/Guide.md` case does not match the file on disk",
             fix: None,
             config_gated: false,
@@ -115,7 +113,7 @@ targets are flagged, so a genuine 404 stays link-target's alone (no double repor
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
             is_markdown(&f.rel_path)
-                && ctx.resolver.link_case(&f.rel_path)
+                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
                 // Frozen (terminal-status) docs may cite old-cased historical paths.
                 && !ctx.frozen_suppressed(self.name(), &f.rel_path)
         }) {
@@ -164,7 +162,7 @@ impl Rule for BarePath {
 the file's own directory or the repo root. Shell/glob metacharacters, `NNNN` placeholders, and \
 markdown-link labels are not treated as paths; a candidate resolving to a gitignored path is \
 skipped as an environment artifact.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "bare path `src/missing.rs` does not exist",
             fix: None,
             config_gated: false,
@@ -175,7 +173,7 @@ skipped as an environment artifact.",
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
             is_markdown(&f.rel_path)
-                && ctx.resolver.bare_path(&f.rel_path)
+                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
                 // Frozen (terminal-status) docs may cite now-gone historical paths.
                 && !ctx.frozen_suppressed(self.name(), &f.rel_path)
         }) {
@@ -226,7 +224,7 @@ impl Rule for ImportTarget {
         Explanation {
             checks: "An `@path` import in an always-loaded guidance file (e.g. CLAUDE.md) \
 resolves on disk. A broken `@`-import fails silently at load time, so nothing else catches it.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "import `@docs/gone.md` does not resolve",
             fix: None,
             config_gated: false,
@@ -234,11 +232,9 @@ resolves on disk. A broken `@`-import fails silently at load time, so nothing el
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| is_markdown(&f.rel_path) && ctx.resolver.import_target(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
+        }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::AtImport {
                     continue;
@@ -279,7 +275,7 @@ impl Rule for CodeDocRef {
             checks: "A doc path (`docs/…`, `issues/…`, `plans/…`) cited inside a non-markdown \
 source file exists, resolved repo-root-relative (nothing establishes a code file's doc \
 directory). A candidate resolving to a gitignored path is skipped as an environment artifact.",
-            config: ENABLED_ONLY,
+            config: NO_CONFIG,
             example: "doc path `docs/gone.md` cited here does not exist",
             fix: None,
             config_gated: false,
@@ -288,11 +284,9 @@ directory). A candidate resolving to a gitignored path is skipped as an environm
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let gitignore = crate::walk::root_gitignore(ctx.root);
         let mut diagnostics = Vec::new();
-        for file in ctx
-            .files
-            .iter()
-            .filter(|f| !is_markdown(&f.rel_path) && ctx.resolver.code_doc_ref(&f.rel_path))
-        {
+        for file in ctx.files.iter().filter(|f| {
+            !is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
+        }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::CodeDocRef {
                     continue;
