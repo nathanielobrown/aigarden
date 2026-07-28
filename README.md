@@ -12,11 +12,32 @@ When agents write most of the code and docs, three things rot faster than a huma
 
 ## Install
 
+Every [release](https://github.com/nathanielobrown/aigarden/releases) ships prebuilt binaries for linux x86_64 and macOS arm64, so you don't need a Rust toolchain.
+
+**With mise:**
+
+```sh
+mise use github:nathanielobrown/aigarden@0.1.1
+```
+
+Pin an exact version rather than `latest` — mise resolves a `latest` request once and then treats it as satisfied, so later releases never arrive (no `mise upgrade` or cache clear dislodges it). If you pin a version minutes after it's cut, mise's release-age quarantine will refuse it; add `minimum_release_age_excludes = ["github:nathanielobrown/aigarden"]` under `[settings]`.
+
+**Direct download:**
+
+```sh
+VERSION=0.1.1 TARGET=aarch64-apple-darwin   # or x86_64-unknown-linux-gnu
+curl -fsSL "https://github.com/nathanielobrown/aigarden/releases/download/v$VERSION/aigarden-$VERSION-$TARGET.tar.gz" | tar -xz
+```
+
+**From source**, which needs the toolchain pinned in `rust-toolchain.toml`:
+
 ```sh
 cargo install --path .
 ```
 
-Requires a recent stable Rust toolchain (pinned in `rust-toolchain.toml`).
+## Releasing
+
+Bump `version` in `Cargo.toml` and merge to main — `.github/workflows/release.yml` builds and publishes any version on main that has no release yet.
 
 ## Quickstart
 
