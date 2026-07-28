@@ -1,0 +1,101 @@
+# Publish prebuilt binaries so consumers install a download instead of a
+# ~124-crate source build. Mycelia pins `latest` via mise's ubi backend
+# (mise.toml [tools]) and picks each release up automatically.
+#
+# Releases are cut by bumping `version` in Cargo.toml — merge that to main and
+# this ships it. The trigger is the version having no release yet, not the diff
+# that changed it, so a re-run or a late-added target self-heals instead of
+# needing the bump replayed. Pushes that leave the version alone do nothing.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+# Creating the release and uploading assets needs write access to the repo's
+# contents; the default GITHUB_TOKEN is read-only under a hardened default.
+permissions:
+  contents: write
+
+concurrency:
+  # Two runs publishing the same tag would race. No cancel-in-progress: a
+  # superseded run still finishes a valid release.
+  group: release
+
+jobs:
+  # Cheap gate so the build matrix only spins up on an actual version bump.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # `gh release view` exits non-zero when the tag has no release — the
+          # signal that this version still needs one.
+          if gh release view "v$version" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is already released; nothing to do."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "v$version has no release yet; building."
+          fi
+
+  build:
+    needs: version
+    if: needs.version.outputs.needed == 'true'
+    strategy:
+      matrix:
+        include:
+          # GitHub's ubuntu runners — the target mycelia's CI installs.
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          # Apple silicon — the target `mise run setup` installs on dev machines.
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      # rustup reads rust-toolchain.toml and provisions the pinned toolchain
+      # itself, so only the target needs adding.
+      - run: rustup target add ${{ matrix.target }}
+      # Reuse the dependency compile across releases; only aigarden's own crate
+      # is usually dirty.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      # --locked: a release must build the committed dependency graph exactly.
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # ubi finds the right asset by matching the target triple in its name.
+      - name: Package
+        run: tar -czf aigarden-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release aigarden
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: aigarden-*.tar.gz
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ needs.version.outputs.version }}" aigarden-*.tar.gz \
+            --repo "${{ github.repository }}" \
+            --title "v${{ needs.version.outputs.version }}" \
+            --notes "Prebuilt binaries for ${{ github.sha }}."
