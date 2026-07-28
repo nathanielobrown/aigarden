@@ -1,0 +1,85 @@
+# Publish prebuilt binaries on every push to main, so consumers install a
+# download instead of a ~124-crate source build. Mycelia pins `latest` via
+# mise's ubi backend (mise.toml [tools]) and picks each release up automatically.
+#
+# The version is `0.1.<run_number>` — monotonic with no manual bump, which is
+# what makes rolling releases work: mise resolves `latest` to a CONCRETE version
+# and keys its install dir on it, so a force-moved `latest` tag would let
+# jdx/mise-action's cache serve a stale binary forever. A new number each push
+# changes the cache key and forces the refetch.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+# Creating the release and uploading assets needs write access to the repo's
+# contents; the default GITHUB_TOKEN is read-only under a hardened default.
+permissions:
+  contents: write
+
+concurrency:
+  # Releases move a shared `latest` pointer, so overlapping runs would race.
+  # No cancel-in-progress: a superseded run still publishes a valid version.
+  group: release
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # GitHub's ubuntu runners — the target mycelia's CI actually installs.
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          # Apple silicon — the target `mise run setup` installs on dev machines.
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      # rustup reads rust-toolchain.toml and provisions the pinned 1.97.1 itself,
+      # so the toolchain needs no explicit setup step — only the target.
+      - run: rustup target add ${{ matrix.target }}
+      # Cache the release profile's build so a push that touches only aigarden's
+      # own sources reuses the dependency compile.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      # Stamp the release version into the crate so `aigarden --version` reports
+      # what was actually installed. Not --locked: this edit moves the package's
+      # own entry in Cargo.lock, which cargo rewrites in place. grep -q first so
+      # a renamed/moved version line fails the release instead of shipping 0.0.0.
+      - name: Set version
+        run: |
+          grep -q '^version = "0.0.0"$' Cargo.toml
+          sed -i.bak 's/^version = "0.0.0"$/version = "0.1.${{ github.run_number }}"/' Cargo.toml && rm Cargo.toml.bak
+
+      - run: cargo build --release --target ${{ matrix.target }}
+
+      # ubi discovers the right asset by matching the target triple in its name.
+      - name: Package
+        run: tar -czf aigarden-0.1.${{ github.run_number }}-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release aigarden
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: aigarden-*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      # A real tag per push (not a moved pointer) is what keeps consumers' caches
+      # honest; `latest` resolution on the consumer side finds it by recency.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.${{ github.run_number }}" aigarden-*.tar.gz \
+            --repo "${{ github.repository }}" \
+            --title "v0.1.${{ github.run_number }}" \
+            --notes "Prebuilt binaries for ${{ github.sha }}."
