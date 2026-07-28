@@ -1,6 +1,8 @@
 [package]
 name = "aigarden"
-version = "0.0.0"
+# Bumping this is what cuts a release: .github/workflows/release.yml ships any
+# version on main that has no GitHub release yet.
+version = "0.1.0"
 edition = "2024"
 # Match the pinned toolchain (rust-toolchain.toml); single-dev tool, so no separate MSRV floor.
 rust-version = "1.97"
