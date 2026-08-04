@@ -1,0 +1,9 @@
+---
+source: tests/mv.rs
+expression: "fs::read_to_string(dir.path().join(\"plans/live.md\")).unwrap()"
+---
+# Live
+
+**Status:** active
+
+See [the map](../docs/storage/persistence.md).
