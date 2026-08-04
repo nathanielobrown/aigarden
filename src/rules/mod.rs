@@ -6,7 +6,6 @@
 //! internal parallelism. Adding a rule here is the only wiring step — the engine
 //! and the `rules` listing pick it up automatically.
 
-use std::collections::HashSet;
 use std::path::Path;
 
 use crate::config::{Config, Resolver};
@@ -33,9 +32,6 @@ pub(crate) struct RuleContext<'a> {
     pub(crate) resolver: &'a Resolver<'a>,
     /// The scan root, for resolving repo-root-relative references.
     pub(crate) root: &'a Path,
-    /// Repo-relative paths of terminal-status "frozen" tracker docs (empty when the
-    /// `[status-header]` mechanism is inert). Computed once by the engine.
-    pub(crate) frozen: &'a HashSet<String>,
 }
 
 impl<'a> RuleContext<'a> {
@@ -44,28 +40,13 @@ impl<'a> RuleContext<'a> {
         config: &'a Config,
         resolver: &'a Resolver<'a>,
         root: &'a Path,
-        frozen: &'a HashSet<String>,
     ) -> Self {
         Self {
             files,
             config,
             resolver,
             root,
-            frozen,
         }
-    }
-
-    /// True when `rule`'s finding on `rel_path` is suppressed by the frozen
-    /// exemption: the file is a terminal-status doc and `rule` is in
-    /// `[status-header] suppresses`. The single seam the frozen-aware rules consult.
-    pub(crate) fn frozen_suppressed(&self, rule: &str, rel_path: &str) -> bool {
-        self.frozen.contains(rel_path)
-            && self
-                .config
-                .status_header
-                .suppresses
-                .iter()
-                .any(|r| r == rule)
     }
 }
 
@@ -77,6 +58,16 @@ pub(crate) trait Rule: Sync {
     fn name(&self) -> &'static str;
     /// One-line description shown by `aigarden rules`.
     fn description(&self) -> &'static str;
+    /// True when `[status-header] suppresses` may name this rule — a rule about a
+    /// markdown doc's *citations of other files*, where a terminal-status doc's
+    /// as-built record is legitimately stale. False (the default) for rules about a
+    /// doc's own structure (`file-length`, `cog-fresh`, `markdown-style`,
+    /// `status-header`) and for `code-doc-ref`, which reads only non-markdown files
+    /// and so could never see a frozen doc. Config validation rejects a
+    /// non-frozen-aware name loudly rather than accept a silent no-op.
+    fn frozen_aware(&self) -> bool {
+        false
+    }
     /// The full contract `aigarden explain <name>` prints. The rule owns its own
     /// documentation, so `explain` and the `rules` status column have one source.
     fn explain(&self) -> Explanation;
@@ -149,4 +140,14 @@ pub(crate) fn registry() -> Vec<Box<dyn Rule>> {
 /// references (`ignore`, `[per-file-ignores]`) against real rules.
 pub(crate) fn rule_names() -> Vec<&'static str> {
     registry().iter().map(|r| r.name()).collect()
+}
+
+/// The names `[status-header] suppresses` accepts, read off the registry so the
+/// allowlist is whatever the rules themselves declare ([`Rule::frozen_aware`]).
+pub(crate) fn frozen_aware_rules() -> Vec<&'static str> {
+    registry()
+        .iter()
+        .filter(|r| r.frozen_aware())
+        .map(|r| r.name())
+        .collect()
 }
