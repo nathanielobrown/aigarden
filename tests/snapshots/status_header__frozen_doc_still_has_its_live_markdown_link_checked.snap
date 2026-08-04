@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/status_header.rs
 info:
   program: aigarden
   args:

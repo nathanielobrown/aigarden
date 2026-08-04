@@ -1,0 +1,13 @@
+---
+source: tests/status_header.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+aigarden: in config file [CONFIG]: `status-header.inherits-from` must be a bare filename, e.g. `plan.md`, not `plans/plan.md`

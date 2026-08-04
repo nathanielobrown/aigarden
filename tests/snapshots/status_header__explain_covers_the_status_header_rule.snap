@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/status_header.rs
 info:
   program: aigarden
   args:
@@ -13,7 +13,7 @@ status-header — every issue/plan doc carries a recognized `**Status:**` header
 Status: config-gated
 
 What it checks
-  Every doc matching `[status-header] files` carries a `**Status:** <value>` header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc.
+  Every doc matching `[status-header] files` carries a `**Status:** <value>` header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc. With `inherits-from`, a doc with no header of its own takes the status of the named file beside it, so a whole directory is one item.
 
 Config [status-header]
   files (default: none (rule inert)) — globs of docs under the contract, e.g. ["issues/**/*.md", "plans/*.md"]; a README under a matched glob is never a tracked item
@@ -21,6 +21,7 @@ Config [status-header]
   live (default: none) — live (non-frozen) status keywords, e.g. ["open", "active"]
   terminal (default: none) — terminal (frozen) status keywords, e.g. ["done", "implemented"]
   suppresses (default: none) — rules the frozen exemption skips on a terminal doc; the citation rules (link-target, link-case, bare-path, import-target, anchor-resolves, descriptive-anchor) are accepted, structural rules are not
+  inherits-from (default: none (every doc is its own item)) — bare filename, e.g. "plan.md": a scanned doc with no header takes the status of this file beside it, making the directory the tracked item
 
 Example finding
   status `dnoe` is not a recognized status (expected one of: open, done)
