@@ -91,7 +91,8 @@ Four gaps this run named have shipped:
 - **Frozen-history / status-header exemption (was High, 193 findings)** — shipped as the generic
   [`status-header`](design.md) rule: a `**Status:** <value>` contract with a live/terminal vocabulary
   where a terminal (frozen) doc's citations are exempt from whichever citation rules the repo lists
-  in `suppresses`, keyed off status not path. Closes the run's entire 193-finding residual (40
+  in `suppresses`, keyed off status not path — and, with `inherits-from`, over a whole directory
+  whose status file governs its siblings. Closes the run's entire 193-finding residual (40
   frozen docs), the single biggest parity gap. Configured via `[status-header]` in `aigarden.toml`
 - **Gitignored-candidate skipping (was Low, 1 finding)** — `bare-path` and `code-doc-ref` now skip a
   *candidate target* that resolves to a gitignored path (an environment artifact present locally but

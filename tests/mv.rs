@@ -151,6 +151,53 @@ fn mv_leaves_a_frozen_docs_citations_alone_when_the_exemption_covers_them() {
 }
 
 #[test]
+fn mv_leaves_a_frozen_directorys_siblings_alone() {
+    // When the tracked item is a directory (`inherits-from`), the shipped plan.md
+    // freezes the grill record beside it: nothing checks that record's citations,
+    // so the rename skips it exactly as it skips the plan. The live directory's
+    // sibling is working material and is rewritten like any other file.
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[status-header]\nfiles = [\"plans/*.md\"]\nlive = [\"active\"]\n\
+         terminal = [\"implemented\"]\ninherits-from = \"plan.md\"\nsuppresses = [\"link-target\"]\n",
+    );
+    write(dir.path(), "docs/persistence.md", "# Persistence\n");
+    write(
+        dir.path(),
+        "plans/shipped/plan.md",
+        "# Shipped\n\n**Status:** implemented (2026-01-01)\n",
+    );
+    let frozen_sibling = "# Grill\n\nWeighed [the map](../../docs/persistence.md).\n";
+    write(dir.path(), "plans/shipped/grill.md", frozen_sibling);
+    write(
+        dir.path(),
+        "plans/building/plan.md",
+        "# Building\n\n**Status:** active\n",
+    );
+    write(
+        dir.path(),
+        "plans/building/grill.md",
+        "# Grill\n\nWeighing [the map](../../docs/persistence.md).\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args([
+        "mv",
+        "docs/persistence.md",
+        "docs/storage/persistence.md"
+    ]));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("plans/shipped/grill.md")).unwrap(),
+        frozen_sibling,
+        "the frozen directory's sibling was edited"
+    );
+    insta::assert_snapshot!(
+        "mv_rewrites_a_live_directorys_sibling",
+        fs::read_to_string(dir.path().join("plans/building/grill.md")).unwrap()
+    );
+}
+
+#[test]
 fn mv_rewrites_a_frozen_doc_whose_citations_are_still_checked() {
     // The skip is keyed on the exemption, not on frozenness: with an empty
     // `suppresses`, the frozen plan's link is still checked, so leaving it stale

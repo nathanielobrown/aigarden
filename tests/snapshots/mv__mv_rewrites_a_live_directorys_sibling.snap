@@ -1,0 +1,7 @@
+---
+source: tests/mv.rs
+expression: "fs::read_to_string(dir.path().join(\"plans/building/grill.md\")).unwrap()"
+---
+# Grill
+
+Weighing [the map](../../docs/storage/persistence.md).

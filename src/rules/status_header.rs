@@ -15,12 +15,15 @@
 //!   status is reported, never silently treated as non-frozen.
 //!
 //! The exemption is keyed off *status*, not a path, so it survives a closed item
-//! living wherever its tracker keeps it. Which rules it may cover is the rules'
+//! living wherever its tracker keeps it. `inherits-from` widens the unit from a
+//! file to a directory: a tracker whose item is `<topic>/plan.md` plus the
+//! artifacts beside it freezes the whole directory when the plan goes terminal,
+//! and those artifacts need no header of their own. Which rules it may cover is the rules'
 //! own declaration ([`crate::rules::Rule::frozen_aware`]): the markdown citation
 //! rules, not the structural ones. A repo that wants a frozen doc's links checked
 //! simply leaves `link-target` out of `suppresses`.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
@@ -67,6 +70,13 @@ pub struct StatusHeaderConfig {
     /// rule is a loud config error, never a silent no-op.
     #[serde(default)]
     pub suppresses: Vec<String>,
+    /// Makes the tracked item a **directory**: the bare filename (e.g. `plan.md`)
+    /// whose status governs every scanned doc beside it that carries no header of
+    /// its own, so a design and its working artifacts share one lifecycle. A doc
+    /// with its own header keeps it, and a directory without this file is
+    /// unaffected. Unset ⇒ every doc is its own item.
+    #[serde(default)]
+    pub inherits_from: Option<String>,
 }
 
 impl Default for StatusHeaderConfig {
@@ -77,6 +87,7 @@ impl Default for StatusHeaderConfig {
             live: Vec::new(),
             terminal: Vec::new(),
             suppresses: Vec::new(),
+            inherits_from: None,
         }
     }
 }
@@ -187,6 +198,43 @@ fn is_readme(rel_path: &str) -> bool {
     rel_path.rsplit('/').next() == Some("README.md")
 }
 
+/// The directory part of a repo-relative path (`""` at the root), for pairing a
+/// doc with the file it inherits from.
+fn dir_of(rel_path: &str) -> &str {
+    rel_path.rsplit_once('/').map_or("", |(dir, _)| dir)
+}
+
+/// Apply `inherits-from`: a scanned doc with no header of its own takes the class
+/// of the designated file beside it, which is what makes the *directory* the
+/// tracked item. Only [`StatusClass::Missing`] inherits — a doc with its own header
+/// keeps it, and a broken one stays a loud finding. One level, no chaining: the
+/// designated file must carry a real status to govern anything.
+fn inherit_within_directory(scanned: &mut [(&SourceFile, StatusClass)], name: &str) {
+    let governing: HashMap<&str, bool> = scanned
+        .iter()
+        .filter_map(|&(file, ref class)| {
+            let terminal = match class {
+                StatusClass::Terminal => true,
+                StatusClass::Live => false,
+                _ => return None,
+            };
+            (file.rel_path.rsplit('/').next() == Some(name))
+                .then(|| (dir_of(&file.rel_path), terminal))
+        })
+        .collect();
+    for (file, class) in scanned.iter_mut() {
+        if *class == StatusClass::Missing
+            && let Some(&terminal) = governing.get(dir_of(&file.rel_path))
+        {
+            *class = if terminal {
+                StatusClass::Terminal
+            } else {
+                StatusClass::Live
+            };
+        }
+    }
+}
+
 /// Iterate the scanned tracker docs paired with their status classification: the
 /// walked markdown files matching a `files` glob, minus READMEs. The one place the
 /// frozen set and the validation findings agree on *which* docs are under the
@@ -200,13 +248,17 @@ fn scanned<'a>(
     }
     // Globs are validated at config load, so a build error here is unreachable.
     let matcher = build_glob_set(&cfg.files).expect("status-header files globs validated at load");
-    files
+    let mut scanned: Vec<(&SourceFile, StatusClass)> = files
         .iter()
         .filter(|f| {
             is_markdown(&f.rel_path) && !is_readme(&f.rel_path) && matcher.is_match(&f.rel_path)
         })
         .map(|f| (f, classify(&f.content, cfg)))
-        .collect()
+        .collect();
+    if let Some(name) = &cfg.inherits_from {
+        inherit_within_directory(&mut scanned, name);
+    }
+    scanned
 }
 
 /// The frozen set: repo-relative paths of terminal-status tracker docs. Empty when
@@ -236,7 +288,9 @@ impl Rule for StatusHeader {
 header whose leading keyword is in `live ∪ terminal`. A missing or unrecognized status is \
 reported, never silently treated as non-frozen. A terminal status marks the doc *frozen*: its \
 path citations are exempt from the rules in `suppresses`. Config-driven and inert until `files` \
-is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc.",
+is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific doc. With \
+`inherits-from`, a doc with no header of its own takes the status of the named file beside it, so \
+a whole directory is one item.",
             config: &[
                 ConfigKey {
                     key: "files",
@@ -265,6 +319,12 @@ is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific 
                     purpose: "rules the frozen exemption skips on a terminal doc; the citation \
 rules (link-target, link-case, bare-path, import-target, anchor-resolves, descriptive-anchor) are \
 accepted, structural rules are not",
+                },
+                ConfigKey {
+                    key: "inherits-from",
+                    default: "none (every doc is its own item)",
+                    purpose: "bare filename, e.g. \"plan.md\": a scanned doc with no header takes \
+the status of this file beside it, making the directory the tracked item",
                 },
             ],
             example: "status `dnoe` is not a recognized status (expected one of: open, done)",
@@ -334,6 +394,7 @@ mod tests {
             suppresses: ["bare-path", "link-case", "descriptive-anchor"]
                 .map(str::to_string)
                 .to_vec(),
+            inherits_from: Some("plan.md".to_string()),
         }
     }
 

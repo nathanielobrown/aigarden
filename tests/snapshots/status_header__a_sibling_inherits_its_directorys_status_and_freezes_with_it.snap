@@ -1,0 +1,25 @@
+---
+source: tests/status_header.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[link-target]: link target `../../docs/gone.md` does not exist
+ --> plans/building/grill.md:3:15
+  |
+3 | See [the map](../../docs/gone.md).
+  |               ^^^^^^^^^^^^^^^^^^ fix the path, or create the target
+plans/loose/notes.md: [status-header] missing a `**Status:**` header (expected one of: active, implemented)
+  help: set a `**Status:**` header to a keyword in `[status-header] live`/`terminal`
+error[link-target]: link target `../../docs/gone.md` does not exist
+ --> plans/shipped/reopened.md:5:15
+  |
+5 | See [the map](../../docs/gone.md).
+  |               ^^^^^^^^^^^^^^^^^^ fix the path, or create the target
+aigarden: 3 findings
+
+----- stderr -----

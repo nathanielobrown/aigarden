@@ -368,6 +368,15 @@ impl Config {
             Glob::new(glob)
                 .with_context(|| format!("invalid `status-header` files glob `{glob}`"))?;
         }
+        // `inherits-from` names a sibling by basename; a path here would match no
+        // file and silently disable directory items, so reject it at load.
+        if let Some(name) = &self.status_header.inherits_from
+            && (name.contains('/') || name.is_empty())
+        {
+            bail!(
+                "`status-header.inherits-from` must be a bare filename, e.g. `plan.md`, not `{name}`"
+            );
+        }
         // Rule names in `ignore` / `per-file-ignores` must be real rules — a typo
         // would silently disable nothing, so reject it loudly against the registry.
         let known: Vec<&str> = crate::rules::rule_names();
