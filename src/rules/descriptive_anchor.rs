@@ -32,6 +32,9 @@ impl Rule for DescriptiveAnchor {
     fn description(&self) -> &'static str {
         "a stable-ID link carries descriptive anchor text, not just the bare ID"
     }
+    fn frozen_aware(&self) -> bool {
+        true
+    }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "A markdown link whose visible text is *only* a bare stable ID (`ADR-0026`, \
@@ -58,11 +61,7 @@ the rule fires only once set",
         }
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
-            is_markdown(&f.rel_path)
-                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
-                // A frozen (terminal-status) doc's historical stable-ID citations are
-                // exempt, like its bare paths and cased links.
-                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
         }) {
             for (span, text) in bare_id_links(&file.content, &patterns) {
                 diagnostics.push(Diagnostic {

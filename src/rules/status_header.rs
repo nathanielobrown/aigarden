@@ -15,10 +15,10 @@
 //!   status is reported, never silently treated as non-frozen.
 //!
 //! The exemption is keyed off *status*, not a path, so it survives a closed item
-//! living wherever its tracker keeps it. It applies only to markdown
-//! reference-integrity rules where a historical citation legitimately appears
-//! ([`FROZEN_AWARE_RULES`]); `link-target`/`anchor-resolves` are deliberately not
-//! suppressible, because a frozen doc's *live* markdown links must still resolve.
+//! living wherever its tracker keeps it. Which rules it may cover is the rules'
+//! own declaration ([`crate::rules::Rule::frozen_aware`]): the markdown citation
+//! rules, not the structural ones. A repo that wants a frozen doc's links checked
+//! simply leaves `link-target` out of `suppresses`.
 
 use std::collections::HashSet;
 
@@ -61,10 +61,10 @@ pub struct StatusHeaderConfig {
     /// is frozen; its citations are exempt from [`Self::suppresses`].
     #[serde(default)]
     pub terminal: Vec<String>,
-    /// Which reference rules the frozen exemption suppresses on a terminal-status
-    /// doc. Validated at load: only the frozen-aware rules ([`FROZEN_AWARE_RULES`])
-    /// are accepted — a typo or a structurally-inapplicable rule is a loud config
-    /// error, never a silent no-op.
+    /// Which rules the frozen exemption suppresses on a terminal-status doc.
+    /// Validated at load against the rules that declare themselves frozen-aware
+    /// ([`crate::rules::frozen_aware_rules`]) — a typo or a structurally-inapplicable
+    /// rule is a loud config error, never a silent no-op.
     #[serde(default)]
     pub suppresses: Vec<String>,
 }
@@ -102,12 +102,6 @@ impl StatusHeaderConfig {
 fn default_status_header() -> String {
     "Status".to_string()
 }
-
-/// The rules the frozen exemption may suppress — the markdown reference-integrity
-/// rules for which a terminal-status doc's historical path citation is legitimate.
-/// `link-target`/`anchor-resolves` are intentionally excluded: a frozen doc's live
-/// links and anchors must still resolve (the source tool kept them checked too).
-pub(crate) const FROZEN_AWARE_RULES: &[&str] = &["bare-path", "link-case", "descriptive-anchor"];
 
 /// How one scanned doc's status classified against the configured vocabulary.
 #[derive(Debug, PartialEq, Eq)]
@@ -268,8 +262,9 @@ is set; a repo-wide contract, though `[per-file-ignores]` can exempt a specific 
                 ConfigKey {
                     key: "suppresses",
                     default: "none",
-                    purpose: "reference rules the frozen exemption skips on a terminal doc; only \
-bare-path, link-case, descriptive-anchor are accepted",
+                    purpose: "rules the frozen exemption skips on a terminal doc; the citation \
+rules (link-target, link-case, bare-path, import-target, anchor-resolves, descriptive-anchor) are \
+accepted, structural rules are not",
                 },
             ],
             example: "status `dnoe` is not a recognized status (expected one of: open, done)",

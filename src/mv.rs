@@ -12,6 +12,11 @@
 //!   from `src`'s directory; they are recomputed from `dst`'s directory so they
 //!   still resolve.
 //!
+//! References inside a *frozen* (terminal-status) doc are the exception: when the
+//! `[status-header]` exemption already excuses them from checking, they are left
+//! as written — a rename must not edit as-built history to keep a link green that
+//! nothing looks at.
+//!
 //! After rewriting, the reference-integrity rules re-run over the repo and report
 //! anything still broken — `mv` treats its own output as unverified until the
 //! link rules say it is clean (the source tool's verify-after step).
@@ -77,7 +82,7 @@ pub(crate) fn run(cli: &Cli, src: &str, dst: &str, out: &mut impl Write) -> Resu
         &cwd,
     )?;
     let (files_touched, refs_rewritten) =
-        rewrite_references(&files, &cwd, &src_abs, &dst_abs, git_move)?;
+        rewrite_references(&files, &cwd, &src_abs, &dst_abs, git_move, &loaded.config)?;
 
     if matches!(cli.output_format, OutputFormat::Human) {
         writeln!(
@@ -159,6 +164,18 @@ fn is_git_tracked(path: &Path) -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
+/// The rule that would report this reference once it went stale — the check each
+/// rewrite exists to keep green, and so the one that decides whether a frozen doc's
+/// reference may be left alone.
+fn stale_ref_rule(kind: RefKind) -> &'static str {
+    match kind {
+        RefKind::MarkdownLink | RefKind::MarkdownImage => "link-target",
+        RefKind::AtImport => "import-target",
+        RefKind::BarePath => "bare-path",
+        RefKind::CodeDocRef => "code-doc-ref",
+    }
+}
+
 /// Rewrite every reference to the moved file and re-anchor the moved file's own
 /// relative links, writing each changed file back. Returns `(files_touched,
 /// refs_rewritten)`.
@@ -168,16 +185,32 @@ fn rewrite_references(
     src_abs: &Path,
     dst_abs: &Path,
     git_move: bool,
+    config: &Config,
 ) -> Result<(usize, usize)> {
+    // A terminal-status doc whose citations the frozen exemption already excuses
+    // from checking is left untouched: as-built history should not be edited by
+    // someone else's rename, and nothing goes stale that anything still checks.
+    let frozen = crate::rules::status_header::frozen_files(files, &config.status_header);
+    let suppresses = &config.status_header.suppresses;
     let dst_dir = dst_abs.parent().unwrap_or(dst_abs);
     let mut files_touched = 0;
     let mut refs_rewritten = 0;
     for file in files {
         let file_abs = normalize_lexical(&file.abs_path);
         let is_moved = file_abs == *dst_abs;
+        // The moved file is exempt from the skip even when frozen: moving it *is* an
+        // edit to it, so re-anchoring its own links beats leaving them dangling.
+        let frozen_skip = !is_moved && frozen.contains(&file.rel_path);
         let current_dir = file_abs.parent().unwrap_or(&file_abs);
         let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
         for reference in extract(&file.rel_path, &file.content) {
+            if frozen_skip
+                && suppresses
+                    .iter()
+                    .any(|r| r == stale_ref_rule(reference.kind))
+            {
+                continue;
+            }
             let Some(path) = reference.path.as_deref().filter(|p| is_checkable_local(p)) else {
                 continue;
             };

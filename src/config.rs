@@ -392,12 +392,13 @@ impl Config {
         }
         // Only a frozen-aware rule can honor the exemption; a name outside that set
         // would silently do nothing, so reject it loudly (fail fast).
+        let frozen_aware = crate::rules::frozen_aware_rules();
         for rule in &self.status_header.suppresses {
-            if !crate::rules::status_header::FROZEN_AWARE_RULES.contains(&rule.as_str()) {
+            if !frozen_aware.contains(&rule.as_str()) {
                 bail!(
                     "`status-header.suppresses` names `{rule}`, which is not a frozen-aware rule \
                      (one of: {})",
-                    crate::rules::status_header::FROZEN_AWARE_RULES.join(", ")
+                    frozen_aware.join(", ")
                 );
             }
         }

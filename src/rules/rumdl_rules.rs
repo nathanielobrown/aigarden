@@ -36,6 +36,9 @@ impl Rule for AnchorResolves {
     fn description(&self) -> &'static str {
         "a link `#fragment` resolves to a heading in the target file"
     }
+    fn frozen_aware(&self) -> bool {
+        true
+    }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "A markdown link `#fragment` points at a heading that exists — in the same \

@@ -106,6 +106,102 @@ fn mv_rewrites_both_a_file_relative_link_and_a_root_relative_bare_path() {
     );
 }
 
+/// A `[status-header]` contract whose terminal docs are *fully* frozen: the link
+/// and bare-path rules are both suppressed, so nothing checks their citations.
+const FROZEN_LINKS_CONFIG: &str = "\
+[status-header]
+files = [\"plans/*.md\"]
+live = [\"active\"]
+terminal = [\"implemented\"]
+suppresses = [\"link-target\", \"bare-path\"]
+";
+
+#[test]
+fn mv_leaves_a_frozen_docs_citations_alone_when_the_exemption_covers_them() {
+    // A shipped plan is as-built history. With its citations exempt from checking,
+    // a rename has no reason to edit it — and a repo that freezes terminal docs at
+    // commit time cannot afford the edit. The live plan cites the same file two
+    // ways and is rewritten as usual; the frozen one comes out byte-identical, and
+    // the move still exits 0 because the residue it leaves is unchecked.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "aigarden.toml", FROZEN_LINKS_CONFIG);
+    write(dir.path(), "docs/persistence.md", "# Persistence\n");
+    let frozen = "# Shipped\n\n**Status:** implemented (2026-01-01)\n\n\
+        Built against [the map](../docs/persistence.md) — root form `docs/persistence.md`.\n";
+    write(dir.path(), "plans/shipped.md", frozen);
+    write(
+        dir.path(),
+        "plans/live.md",
+        "# Live\n\n**Status:** active\n\nSee [the map](../docs/persistence.md).\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args([
+        "mv",
+        "docs/persistence.md",
+        "docs/storage/persistence.md"
+    ]));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("plans/shipped.md")).unwrap(),
+        frozen,
+        "the frozen plan was edited"
+    );
+    insta::assert_snapshot!(
+        "mv_rewrites_the_live_plan_beside_a_frozen_one",
+        fs::read_to_string(dir.path().join("plans/live.md")).unwrap()
+    );
+}
+
+#[test]
+fn mv_rewrites_a_frozen_doc_whose_citations_are_still_checked() {
+    // The skip is keyed on the exemption, not on frozenness: with an empty
+    // `suppresses`, the frozen plan's link is still checked, so leaving it stale
+    // would break the repo — mv rewrites it exactly as it always did.
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[status-header]\nfiles = [\"plans/*.md\"]\nlive = [\"active\"]\nterminal = [\"implemented\"]\n",
+    );
+    write(dir.path(), "docs/persistence.md", "# Persistence\n");
+    write(
+        dir.path(),
+        "plans/shipped.md",
+        "# Shipped\n\n**Status:** implemented (2026-01-01)\n\nSee [the map](../docs/persistence.md).\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args([
+        "mv",
+        "docs/persistence.md",
+        "docs/storage/persistence.md"
+    ]));
+    insta::assert_snapshot!(
+        "mv_rewrites_a_checked_frozen_doc",
+        fs::read_to_string(dir.path().join("plans/shipped.md")).unwrap()
+    );
+}
+
+#[test]
+fn mv_reanchors_a_frozen_doc_it_moves_itself() {
+    // The one edit a frozen doc still gets: moving it *is* an edit to it, so its
+    // own outbound links are re-anchored rather than left dangling. The skip
+    // protects frozen docs from a rename of some *other* file.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "aigarden.toml", FROZEN_LINKS_CONFIG);
+    write(dir.path(), "docs/persistence.md", "# Persistence\n");
+    write(
+        dir.path(),
+        "plans/shipped.md",
+        "# Shipped\n\n**Status:** implemented (2026-01-01)\n\nSee [the map](../docs/persistence.md).\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args([
+        "mv",
+        "plans/shipped.md",
+        "plans/archive/shipped.md"
+    ]));
+    insta::assert_snapshot!(
+        "mv_reanchored_moved_frozen_doc",
+        fs::read_to_string(dir.path().join("plans/archive/shipped.md")).unwrap()
+    );
+}
+
 #[test]
 fn mv_stages_the_rename_and_its_rewrites_but_not_unrelated_changes() {
     // In a real git repo, `git mv` stages the rename; `mv` must likewise stage the

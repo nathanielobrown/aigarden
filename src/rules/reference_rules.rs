@@ -44,6 +44,9 @@ impl Rule for LinkTarget {
     fn description(&self) -> &'static str {
         "a relative markdown link or image target exists on disk"
     }
+    fn frozen_aware(&self) -> bool {
+        true
+    }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "A relative markdown link or image target resolves to a file on disk, from \
@@ -98,6 +101,9 @@ impl Rule for LinkCase {
     fn description(&self) -> &'static str {
         "a link target's case matches the filesystem exactly"
     }
+    fn frozen_aware(&self) -> bool {
+        true
+    }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "A link target that exists but under a different case — the macOS \
@@ -112,10 +118,7 @@ targets are flagged, so a genuine 404 stays link-target's alone (no double repor
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
-            is_markdown(&f.rel_path)
-                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
-                // Frozen (terminal-status) docs may cite old-cased historical paths.
-                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
         }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if !matches!(
@@ -156,6 +159,9 @@ impl Rule for BarePath {
     fn description(&self) -> &'static str {
         "a backticked file-shaped path in markdown prose exists"
     }
+    fn frozen_aware(&self) -> bool {
+        true
+    }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "A backticked, file-shaped path in markdown prose exists, resolved against \
@@ -172,10 +178,7 @@ skipped as an environment artifact.",
         let gitignore = crate::walk::root_gitignore(ctx.root);
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
-            is_markdown(&f.rel_path)
-                && ctx.resolver.is_enabled(self.name(), &f.rel_path)
-                // Frozen (terminal-status) docs may cite now-gone historical paths.
-                && !ctx.frozen_suppressed(self.name(), &f.rel_path)
+            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
         }) {
             for reference in extract(&file.rel_path, &file.content) {
                 if reference.kind != RefKind::BarePath {
@@ -219,6 +222,9 @@ impl Rule for ImportTarget {
     }
     fn description(&self) -> &'static str {
         "an `@path` import in a guidance file resolves on disk"
+    }
+    fn frozen_aware(&self) -> bool {
+        true
     }
     fn explain(&self) -> Explanation {
         Explanation {

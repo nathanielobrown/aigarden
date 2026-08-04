@@ -10,4 +10,4 @@ exit_code: 2
 ----- stdout -----
 
 ----- stderr -----
-aigarden: in config file [CONFIG]: `status-header.suppresses` names `file-length`, which is not a frozen-aware rule (one of: bare-path, link-case, descriptive-anchor)
+aigarden: in config file [CONFIG]: `status-header.suppresses` names `file-length`, which is not a frozen-aware rule (one of: link-target, link-case, bare-path, import-target, anchor-resolves, descriptive-anchor)

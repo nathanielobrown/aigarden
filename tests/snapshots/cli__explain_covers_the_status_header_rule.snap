@@ -20,7 +20,7 @@ Config [status-header]
   header (default: "Status") — the bold label parsed as `**<header>:** <value>`
   live (default: none) — live (non-frozen) status keywords, e.g. ["open", "active"]
   terminal (default: none) — terminal (frozen) status keywords, e.g. ["done", "implemented"]
-  suppresses (default: none) — reference rules the frozen exemption skips on a terminal doc; only bare-path, link-case, descriptive-anchor are accepted
+  suppresses (default: none) — rules the frozen exemption skips on a terminal doc; the citation rules (link-target, link-case, bare-path, import-target, anchor-resolves, descriptive-anchor) are accepted, structural rules are not
 
 Example finding
   status `dnoe` is not a recognized status (expected one of: open, done)

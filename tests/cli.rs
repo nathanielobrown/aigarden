@@ -512,15 +512,46 @@ fn frozen_terminal_doc_exempts_a_bare_path_a_live_doc_does_not() {
 
 #[test]
 fn frozen_doc_still_has_its_live_markdown_link_checked() {
-    // The exemption is deliberately narrow: it never suppresses link-target, so a
-    // frozen doc's *live* markdown link to a missing file is still a finding — the
-    // historical-record allowance is only for backticked/cased/stable-ID citations.
+    // The exemption is opt-in per rule: with link-target left out of `suppresses`, a
+    // frozen doc's markdown link to a missing file is still a finding — the
+    // historical-record allowance covers only the rules the repo named.
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "aigarden.toml", STATUS_HEADER_CONFIG);
     write(
         dir.path(),
         "issues/0003-closed.md",
         "# 0003: Closed\n\n**Status:** done\n\nSee [the guide](docs/gone.md).\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+}
+
+/// The same contract with the link rules added to `suppresses` — the "frozen
+/// means frozen" configuration, for a repo whose terminal docs are untouchable
+/// history rather than live documentation.
+const FROZEN_LINKS_CONFIG: &str = "\
+[status-header]
+files = [\"issues/**/*.md\", \"plans/*.md\"]
+live = [\"open\"]
+terminal = [\"done\", \"implemented\"]
+suppresses = [\"bare-path\", \"link-case\", \"descriptive-anchor\", \"link-target\", \"anchor-resolves\"]
+";
+
+#[test]
+fn suppressing_the_link_rules_frees_a_frozen_docs_dead_link_and_anchor() {
+    // Configuring link-target/anchor-resolves as suppressible (a config that used
+    // to be rejected outright) makes a frozen doc's dead link and dangling anchor
+    // stop being findings — while the identical link in the live issue still is.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "aigarden.toml", FROZEN_LINKS_CONFIG);
+    write(
+        dir.path(),
+        "issues/0006-closed.md",
+        "# 0006: Closed\n\n**Status:** done\n\nSee [the guide](docs/gone.md) and [below](#no-such-heading).\n",
+    );
+    write(
+        dir.path(),
+        "issues/0007-live.md",
+        "# 0007: Live\n\n**Status:** open\n\nSee [the guide](docs/gone.md).\n",
     );
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
@@ -574,9 +605,9 @@ fn readme_under_a_tracker_glob_is_not_a_tracked_item() {
 
 #[test]
 fn suppresses_naming_a_non_frozen_aware_rule_is_a_config_error() {
-    // Only bare-path/link-case/descriptive-anchor can honor the exemption; naming
-    // any other rule (here file-length) would be a silent no-op, so it is a loud
-    // config error (exit 2) at load, never accepted.
+    // Only a rule that declares itself frozen-aware — the markdown citation rules —
+    // can honor the exemption; naming a structural one (here file-length) would be a
+    // silent no-op, so it is a loud config error (exit 2) at load, never accepted.
     let dir = tempfile::tempdir().unwrap();
     write(
         dir.path(),

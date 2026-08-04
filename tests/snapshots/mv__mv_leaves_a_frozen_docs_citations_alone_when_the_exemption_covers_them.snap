@@ -1,0 +1,16 @@
+---
+source: tests/mv.rs
+info:
+  program: aigarden
+  args:
+    - mv
+    - docs/persistence.md
+    - docs/storage/persistence.md
+---
+success: true
+exit_code: 0
+----- stdout -----
+moved docs/persistence.md → docs/storage/persistence.md (rewrote 1 reference(s) across 1 file(s))
+✓ aigarden: checked 4 files, no findings
+
+----- stderr -----

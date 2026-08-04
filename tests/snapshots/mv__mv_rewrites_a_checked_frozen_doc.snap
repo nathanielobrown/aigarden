@@ -1,0 +1,9 @@
+---
+source: tests/mv.rs
+expression: "fs::read_to_string(dir.path().join(\"plans/shipped.md\")).unwrap()"
+---
+# Shipped
+
+**Status:** implemented (2026-01-01)
+
+See [the map](../docs/storage/persistence.md).

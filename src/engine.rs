@@ -32,13 +32,25 @@ pub(crate) fn check_with(
     keep: impl Fn(&str) -> bool,
 ) -> Result<Vec<Diagnostic>> {
     let resolver = Resolver::new(config)?;
-    // The frozen set (terminal-status docs) is cross-cutting: the status-header rule
-    // validates it, and the suppressed reference rules consult it. Compute it once.
+    let ctx = RuleContext::new(files, config, &resolver, root);
+    // The frozen exemption is applied here, in one place, rather than by each rule:
+    // a frozen-aware rule named in `[status-header] suppresses` loses its findings on
+    // terminal-status docs. Keeping it out of the rule bodies means a rule can never
+    // declare itself frozen-aware and then forget to honor it.
     let frozen = crate::rules::status_header::frozen_files(files, &config.status_header);
-    let ctx = RuleContext::new(files, config, &resolver, root, &frozen);
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     for rule in registry().iter().filter(|rule| keep(rule.name())) {
-        diagnostics.extend(rule.check(&ctx));
+        let suppressed = rule.frozen_aware()
+            && config
+                .status_header
+                .suppresses
+                .iter()
+                .any(|r| r == rule.name());
+        diagnostics.extend(
+            rule.check(&ctx)
+                .into_iter()
+                .filter(|d| !(suppressed && frozen.contains(&d.path))),
+        );
     }
     diagnostics.sort_by(|a, b| {
         let a_line = a.span.map_or(0, |s| s.start_line);
