@@ -303,6 +303,95 @@ fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
 
+/// The never-wrap convention: one physical line per paragraph. `reflow =
+/// "never-wrap"` must report every hard-wrapped paragraph and join it on `--fix`.
+/// The messages must also read in aigarden's own terms — the column it hands rumdl
+/// to spell "never wrap" is a sentinel, and a finding must never quote it.
+#[test]
+fn never_wrap_flags_a_hard_wrapped_paragraph_then_fix_joins_it() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[markdown-style]\nreflow = \"never-wrap\"\n",
+    );
+    // A paragraph and a list item, each split over short lines — under any column
+    // limit, so only a normalize-style reflow can see them. rumdl phrases those two
+    // findings differently, so both message shapes are covered here.
+    let wrapped = "# Title\n\nA paragraph the author\nhard-wrapped across\nthree lines.\n\n- a list item the author\n  also hard-wrapped\n";
+    write(dir.path(), "s.md", wrapped);
+    // Check mode reports it...
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+    // ...and leaves the file alone: check never writes.
+    assert_eq!(
+        fs::read_to_string(dir.path().join("s.md")).unwrap(),
+        wrapped
+    );
+    // Fix mode joins it, and reports the (now empty) residue.
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--fix"]));
+    let fixed = fs::read_to_string(dir.path().join("s.md")).unwrap();
+    insta::assert_snapshot!("never_wrap_joins_the_paragraph", fixed);
+    // A second plain check is clean — check and fix agree on what never-wrap means.
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+}
+
+/// Never-wrap is a *prose* convention: a code fence's line breaks are its content
+/// and a table's are its structure, so both must survive a fix byte for byte.
+#[test]
+fn never_wrap_leaves_code_fences_and_tables_untouched() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[markdown-style]\nreflow = \"never-wrap\"\n",
+    );
+    // Every paragraph here is already one line, so the only multi-line blocks are
+    // the fence and the table. A conforming file must be reported clean...
+    let doc = "# Title\n\nAlready one line.\n\n```text\nfenced line one\nfenced line two\n```\n\n| col | other |\n| --- | --- |\n| a | b |\n| c | d |\n";
+    write(dir.path(), "s.md", doc);
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+    // ...and survive `--fix` unchanged, byte for byte.
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--fix"]));
+    assert_eq!(fs::read_to_string(dir.path().join("s.md")).unwrap(), doc);
+}
+
+/// The former `reflow = true` — rumdl's re-wrap-at-the-limit behavior — keeps
+/// working under its own name, so never-wrap is an added mode, not a replacement.
+#[test]
+fn reflow_wrap_re_wraps_an_over_long_paragraph() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[markdown-style]\nreflow = \"wrap\"\n",
+    );
+    // One 100-column line: over rumdl's 80-column limit, so wrap mode breaks it.
+    write(
+        dir.path(),
+        "s.md",
+        "# Title\n\nword wordy wordier wordiest word wordy wordier wordiest word wordy wordier wordiest words.\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--fix"]));
+    let fixed = fs::read_to_string(dir.path().join("s.md")).unwrap();
+    insta::assert_snapshot!("reflow_wrap_wraps_at_the_limit", fixed);
+}
+
+/// `reflow` is a named mode, not a flag. The old boolean spelling must fail loudly
+/// at load (exit 2) rather than being read as one of the modes.
+#[test]
+fn boolean_reflow_is_a_clean_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[markdown-style]\nreflow = true\n",
+    );
+    write(dir.path(), "s.md", "# Title\n\nA line.\n");
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+    });
+}
+
 #[test]
 fn per_file_ignores_scopes_a_single_rule_by_path() {
     let dir = tempfile::tempdir().unwrap();

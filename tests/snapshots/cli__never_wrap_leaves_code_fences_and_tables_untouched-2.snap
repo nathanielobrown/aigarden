@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+info:
+  program: aigarden
+  args:
+    - check
+    - "--fix"
+---
+success: true
+exit_code: 0
+----- stdout -----
+✓ aigarden: checked 2 files, no findings
+
+----- stderr -----

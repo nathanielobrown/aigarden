@@ -4,6 +4,7 @@
 //! a rumdl rule set, run it through the adapter, and map warnings to aigarden
 //! diagnostics. Nothing else in the tree touches rumdl types.
 
+use crate::config::Reflow;
 use crate::diagnostic::{Diagnostic, Span};
 use crate::rules::{ConfigKey, Explanation, NO_CONFIG, Rule, RuleContext};
 use crate::rumdl_adapter::{RumdlFinding, anchor_rules, char_pos_to_byte, run, style_rules};
@@ -62,6 +63,23 @@ heading-slug long tail.",
     }
 }
 
+/// The rumdl phrasing never-wrap replaces. rumdl names the subject ("Paragraph",
+/// "List item") and then the column it would normalize to.
+const NORMALIZE_PHRASE: &str = " could be normalized to use line length of";
+
+/// Say what a never-wrap finding means, keeping rumdl's subject. rumdl's own text
+/// ends in the sentinel column aigarden hands MD013 to spell "never wrap" — an
+/// implementation detail no reader should meet. `None` leaves the message alone.
+fn never_wrap_message(reflow: Reflow, raw: &str) -> Option<String> {
+    if reflow != Reflow::NeverWrap {
+        return None;
+    }
+    let subject = raw.split_once(NORMALIZE_PHRASE)?.0;
+    Some(format!(
+        "{subject} is hard-wrapped; never-wrap keeps it on one line"
+    ))
+}
+
 /// `markdown-style`: markdown hygiene surfaced from rumdl — trailing spaces, hard
 /// tabs, multiple blank lines, a single trailing newline, and (opt-in) paragraph
 /// reflow. All fixable via `aigarden check --fix`. The originating rumdl rule id is
@@ -78,19 +96,20 @@ impl Rule for MarkdownStyle {
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, \
-multiple blank lines, a single final newline, and opt-in paragraph reflow. Each message is \
-prefixed with the originating rumdl rule id.",
+multiple blank lines, a single final newline, and an opt-in paragraph-wrapping convention. Each \
+message is prefixed with the originating rumdl rule id.",
             config: &[ConfigKey {
                 key: "reflow",
-                default: "false",
-                purpose: "normalize each paragraph to one line (rumdl MD013); off because \
-it rewrites prose",
+                default: "\"off\"",
+                purpose: "the paragraph-wrapping convention (rumdl MD013): \"off\", \"wrap\" \
+(re-wrap past 80 columns), or \"never-wrap\" (one line per paragraph, fences and tables \
+untouched); off because reflow rewrites prose",
             }],
             example: "[MD009] Trailing whitespace",
             fix: Some(
                 "`aigarden check --fix` rewrites each file in place: strips trailing spaces, \
 converts hard tabs, collapses blank-line runs, and ensures a single final newline (and \
-reflows paragraphs when reflow = true).",
+reflows paragraphs when reflow names a mode).",
             ),
             config_gated: false,
         }
@@ -106,9 +125,11 @@ reflows paragraphs when reflow = true).",
             .filter(|f| ctx.resolver.is_enabled(self.name(), &f.rel_path));
         let mut diagnostics = Vec::new();
         for finding in &run(group, &style_rules(reflow)) {
+            let raw = &finding.warning.message;
+            let text = never_wrap_message(reflow, raw).unwrap_or_else(|| raw.clone());
             let message = match &finding.warning.rule_name {
-                Some(id) => format!("[{id}] {}", finding.warning.message),
-                None => finding.warning.message.clone(),
+                Some(id) => format!("[{id}] {text}"),
+                None => text,
             };
             diagnostics.push(to_diagnostic(self.name(), finding, message));
         }

@@ -73,16 +73,34 @@ pub struct DescriptiveAnchorConfig {
 }
 
 /// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
-/// under aigarden keys, rather than exposing raw rumdl config. `reflow` maps to
-/// rumdl's MD013 one-paragraph-per-line normalization; the rest are rumdl's
-/// defaults, fixable via `aigarden check --fix`.
+/// under aigarden keys, rather than exposing raw rumdl config. `reflow` names the
+/// paragraph-wrapping convention; the rest are rumdl's defaults, fixable via
+/// `aigarden check --fix`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct MarkdownStyleConfig {
-    /// Normalize each paragraph to a single line (rumdl MD013 reflow), the
-    /// convention the source repo uses. Off by default — it rewrites prose.
+    /// Which paragraph-wrapping convention the repo holds its prose to.
     #[serde(default)]
-    pub reflow: bool,
+    pub reflow: Reflow,
+}
+
+/// The paragraph-wrapping convention `markdown-style` enforces, backed by rumdl
+/// MD013. A named mode rather than raw MD013 knobs: a repo picks a convention,
+/// and aigarden owns the rumdl settings that spell it out. An unrecognized name is
+/// a load-time config error.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Reflow {
+    /// Leave line breaks as the author wrote them. The default — reflow rewrites
+    /// prose, so a repo opts in.
+    #[default]
+    Off,
+    /// Re-wrap any paragraph that runs past rumdl's 80-column limit.
+    Wrap,
+    /// One physical line per paragraph: join every hard-wrapped paragraph and
+    /// never introduce a break, so a reworded sentence is a one-line diff. Code
+    /// fences and tables keep their line breaks.
+    NeverWrap,
 }
 
 /// Built-in exclusions applied to every repo. `**/fixtures/**` because tracked
