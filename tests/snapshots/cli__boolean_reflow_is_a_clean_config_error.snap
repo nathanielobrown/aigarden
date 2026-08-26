@@ -1,0 +1,17 @@
+---
+source: tests/cli.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+aigarden: parsing config file [CONFIG]: TOML parse error at line 2, column 10
+  |
+2 | reflow = true
+  |          ^^^^
+wanted string or table

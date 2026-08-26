@@ -11,11 +11,14 @@
 
 use rumdl_lib::config::MarkdownFlavor;
 use rumdl_lib::rule::{LintWarning, Rule as RumdlRule};
+use rumdl_lib::rules::md013_line_length::md013_config::ReflowMode;
 use rumdl_lib::rules::{
     MD009TrailingSpaces, MD010NoHardTabs, MD012NoMultipleBlanks, MD013Config, MD013LineLength,
     MD047SingleTrailingNewline, MD051LinkFragments,
 };
+use rumdl_lib::types::LineLength;
 
+use crate::config::Reflow;
 use crate::references::is_markdown;
 use crate::walk::SourceFile;
 
@@ -30,24 +33,47 @@ pub(crate) fn anchor_rules() -> Vec<Box<dyn RumdlRule>> {
     vec![Box::new(MD051LinkFragments::new())]
 }
 
+/// The column never-wrap hands MD013. Normalize joins a paragraph and then wraps
+/// it at the limit, so "never wrap" is spelled as a limit no real line reaches.
+const NEVER_WRAP_COLUMN: usize = 100_000;
+
 /// The curated auto-fixable style set. These are the universally-agreed markdown
 /// hygiene rules (trailing spaces, hard tabs, blank-line runs, final newline);
-/// `reflow` adds paragraph re-wrapping (MD013) when the caller opts in.
-pub(crate) fn style_rules(reflow: bool) -> Vec<Box<dyn RumdlRule>> {
+/// `reflow` adds paragraph re-wrapping (MD013) in the mode the caller picked.
+pub(crate) fn style_rules(reflow: Reflow) -> Vec<Box<dyn RumdlRule>> {
     let mut rules: Vec<Box<dyn RumdlRule>> = vec![
         Box::new(MD009TrailingSpaces::new(2, false)),
         Box::new(MD010NoHardTabs::new(4)),
         Box::new(MD012NoMultipleBlanks::new(1)),
         Box::new(MD047SingleTrailingNewline),
     ];
-    if reflow {
-        // reflow=true re-wraps over-length paragraphs to the line-length limit.
-        rules.push(Box::new(MD013LineLength::from_config_struct(MD013Config {
-            reflow: true,
-            ..MD013Config::default()
-        })));
+    if let Some(config) = md013_config(reflow) {
+        rules.push(Box::new(MD013LineLength::from_config_struct(config)));
     }
     rules
+}
+
+/// The MD013 settings each reflow mode means, or `None` when reflow is off.
+fn md013_config(reflow: Reflow) -> Option<MD013Config> {
+    match reflow {
+        Reflow::Off => None,
+        // Re-wrap over-length paragraphs to rumdl's default line-length limit.
+        Reflow::Wrap => Some(MD013Config {
+            reflow: true,
+            ..MD013Config::default()
+        }),
+        // Normalize joins each paragraph to one line; the huge limit stops it
+        // wrapping again. Fences and tables are excluded so their line breaks —
+        // content in one, structure in the other — survive a fix untouched.
+        Reflow::NeverWrap => Some(MD013Config {
+            reflow: true,
+            reflow_mode: ReflowMode::Normalize,
+            line_length: LineLength::from_const(NEVER_WRAP_COLUMN),
+            code_blocks: false,
+            tables: false,
+            ..MD013Config::default()
+        }),
+    }
 }
 
 /// Run `rules` over the given markdown files, gathering single-file warnings and

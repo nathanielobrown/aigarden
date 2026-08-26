@@ -52,7 +52,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 
 **Markdown style:**
 
-- `markdown-style` — a curated, auto-fixable slice of `rumdl_lib`'s style rules (trailing spaces, hard tabs, multiple blank lines, single trailing newline), surfaced under aigarden's own config and diagnostics — repos drop `.rumdl.toml`: one tool, one config. `reflow` (MD013 paragraph re-wrapping) is opt-in. `aigarden check --fix` applies the fixes on disk and re-reports the residue, so a second `--fix` run is a clean no-op
+- `markdown-style` — a curated, auto-fixable slice of `rumdl_lib`'s style rules (trailing spaces, hard tabs, multiple blank lines, single trailing newline), surfaced under aigarden's own config and diagnostics — repos drop `.rumdl.toml`: one tool, one config. `reflow` names the repo's paragraph-wrapping convention and is opt-in: `"wrap"` re-wraps a paragraph that runs past 80 columns, `"never-wrap"` joins every hard-wrapped paragraph to one physical line (so a reworded sentence is a one-line diff) and leaves code fences and tables alone. aigarden owns the MD013 settings each mode means, so a repo picks a convention rather than raw rumdl knobs. `aigarden check --fix` applies the fixes on disk and re-reports the residue, so a second `--fix` run is a clean no-op
 
 **Generated freshness:**
 
@@ -93,7 +93,7 @@ ignore = ["cog-fresh"]
 "{CLAUDE,AGENTS}.md" = { tokens = 4000 }   # ~4 chars/token
 
 [markdown-style]
-reflow = true       # rumdl rules surface under aigarden keys
+reflow = "never-wrap"   # one line per paragraph; also "wrap" or the default "off"
 
 # descriptive-anchor: inert until you declare the stable-ID shapes (regexes).
 [descriptive-anchor]

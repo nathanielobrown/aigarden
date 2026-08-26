@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: fixed
+---
+# Title
+
+A paragraph the author hard-wrapped across three lines.
+
+- a list item the author also hard-wrapped

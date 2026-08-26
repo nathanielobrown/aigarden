@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: fixed
+---
+# Title
+
+word wordy wordier wordiest word wordy wordier wordiest word wordy wordier
+wordiest words.
