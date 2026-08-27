@@ -13,11 +13,16 @@ error[markdown-style]: [MD009] 3 trailing spaces found
   |
 3 | A line with trailing   
   |                     ^^^
-error[markdown-style]: [MD047] File should end with a single newline character
- --> s.md:4:5
+error[markdown-style]: [MD031] No blank line before fenced code block
+ --> s.md:4:1
   |
-4 | last
+4 | ```text
+  | ^^^^^^^
+error[markdown-style]: [MD047] File should end with a single newline character
+ --> s.md:8:5
+  |
+8 | last
   |     ^
-aigarden: 2 findings
+aigarden: 3 findings
 
 ----- stderr -----

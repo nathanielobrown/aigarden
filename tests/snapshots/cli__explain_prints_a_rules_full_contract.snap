@@ -9,11 +9,11 @@ info:
 success: true
 exit_code: 0
 ----- stdout -----
-markdown-style — markdown hygiene: trailing spaces, tabs, blank runs, final newline
+markdown-style — markdown hygiene: trailing spaces, tabs, blank runs, fences, final newline
 Status: fixable
 
 What it checks
-  Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, multiple blank lines, a single final newline, and an opt-in paragraph-wrapping convention. Each message is prefixed with the originating rumdl rule id.
+  Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, multiple blank lines, a blank line either side of a fenced code block, a single final newline, and an opt-in paragraph-wrapping convention. Each message is prefixed with the originating rumdl rule id.
 
 Config [markdown-style]
   reflow (default: "off") — the paragraph-wrapping convention (rumdl MD013): "off", "wrap" (re-wrap past 80 columns), or "never-wrap" (one line per paragraph, fences and tables untouched); off because reflow rewrites prose
@@ -22,6 +22,6 @@ Example finding
   [MD009] Trailing whitespace
 
 Fix
-  `aigarden check --fix` rewrites each file in place: strips trailing spaces, converts hard tabs, collapses blank-line runs, and ensures a single final newline (and reflows paragraphs when reflow names a mode).
+  `aigarden check --fix` rewrites each file in place: strips trailing spaces, converts hard tabs, collapses blank-line runs, opens a blank line either side of a fence, and ensures a single final newline (and reflows paragraphs when reflow names a mode).
 
 ----- stderr -----

@@ -276,11 +276,13 @@ fn anchor_resolves_flags_missing_same_file_and_cross_file_fragments() {
 #[test]
 fn markdown_style_flags_trailing_spaces_and_missing_final_newline() {
     let dir = tempfile::tempdir().unwrap();
-    // Trailing whitespace (MD009) and no closing newline (MD047) — the fixable set.
+    // Trailing whitespace (MD009), a fence with no blank line before it (MD031), and
+    // no closing newline (MD047) — each reported under `markdown-style`, tagged with
+    // the rumdl rule id it came from.
     write(
         dir.path(),
         "s.md",
-        "# Title\n\nA line with trailing   \nlast",
+        "# Title\n\nA line with trailing   \n```text\nfenced\n```\n\nlast",
     );
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
@@ -288,11 +290,12 @@ fn markdown_style_flags_trailing_spaces_and_missing_final_newline() {
 #[test]
 fn fix_repairs_markdown_style_then_a_re_check_is_clean() {
     let dir = tempfile::tempdir().unwrap();
-    // Two blank-line runs (MD012) plus a tab (MD010) plus a missing final newline.
+    // Two blank-line runs (MD012), a tab (MD010), a fence hugging the prose on both
+    // sides (MD031), and a missing final newline (MD047) — the whole fixable set.
     write(
         dir.path(),
         "s.md",
-        "# Title\n\nPara one.\n\n\n\nPara two with a\ttab.",
+        "# Title\n\nPara one.\n\n\n\nPara two with a\ttab.\n```text\nfenced\n```\nAfter the fence.",
     );
     // `--fix` rewrites the file, then reports the (now empty) residue.
     assert_cmd_snapshot!(aigarden(dir.path()).args(["check", "--fix"]));

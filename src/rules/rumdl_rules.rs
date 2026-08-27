@@ -81,9 +81,10 @@ fn never_wrap_message(reflow: Reflow, raw: &str) -> Option<String> {
 }
 
 /// `markdown-style`: markdown hygiene surfaced from rumdl — trailing spaces, hard
-/// tabs, multiple blank lines, a single trailing newline, and (opt-in) paragraph
-/// reflow. All fixable via `aigarden check --fix`. The originating rumdl rule id is
-/// prefixed onto each message so a finding is traceable.
+/// tabs, multiple blank lines, blank lines around code fences, a single trailing
+/// newline, and (opt-in) paragraph reflow. All fixable via `aigarden check --fix`.
+/// The originating rumdl rule id is prefixed onto each message so a finding is
+/// traceable.
 pub(crate) struct MarkdownStyle;
 
 impl Rule for MarkdownStyle {
@@ -91,13 +92,14 @@ impl Rule for MarkdownStyle {
         "markdown-style"
     }
     fn description(&self) -> &'static str {
-        "markdown hygiene: trailing spaces, tabs, blank runs, final newline"
+        "markdown hygiene: trailing spaces, tabs, blank runs, fences, final newline"
     }
     fn explain(&self) -> Explanation {
         Explanation {
             checks: "Markdown hygiene from a curated rumdl slice: trailing spaces, hard tabs, \
-multiple blank lines, a single final newline, and an opt-in paragraph-wrapping convention. Each \
-message is prefixed with the originating rumdl rule id.",
+multiple blank lines, a blank line either side of a fenced code block, a single final newline, \
+and an opt-in paragraph-wrapping convention. Each message is prefixed with the originating rumdl \
+rule id.",
             config: &[ConfigKey {
                 key: "reflow",
                 default: "\"off\"",
@@ -108,8 +110,8 @@ untouched); off because reflow rewrites prose",
             example: "[MD009] Trailing whitespace",
             fix: Some(
                 "`aigarden check --fix` rewrites each file in place: strips trailing spaces, \
-converts hard tabs, collapses blank-line runs, and ensures a single final newline (and \
-reflows paragraphs when reflow names a mode).",
+converts hard tabs, collapses blank-line runs, opens a blank line either side of a fence, and \
+ensures a single final newline (and reflows paragraphs when reflow names a mode).",
             ),
             config_gated: false,
         }

@@ -17,7 +17,7 @@ file-length         report-only   flag files that exceed their per-glob size bud
 import-target       report-only   an `@path` import in a guidance file resolves on disk
 link-case           report-only   a link target's case matches the filesystem exactly
 link-target         report-only   a relative markdown link or image target exists on disk
-markdown-style      fixable       markdown hygiene: trailing spaces, tabs, blank runs, final newline
+markdown-style      fixable       markdown hygiene: trailing spaces, tabs, blank runs, fences, final newline
 status-header       config-gated  every issue/plan doc carries a recognized `**Status:**` header
 
 ----- stderr -----

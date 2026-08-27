@@ -7,3 +7,9 @@ expression: fixed
 Para one.
 
 Para two with a    tab.
+
+```text
+fenced
+```
+
+After the fence.

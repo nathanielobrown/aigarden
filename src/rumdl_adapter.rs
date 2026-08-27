@@ -14,7 +14,7 @@ use rumdl_lib::rule::{LintWarning, Rule as RumdlRule};
 use rumdl_lib::rules::md013_line_length::md013_config::ReflowMode;
 use rumdl_lib::rules::{
     MD009TrailingSpaces, MD010NoHardTabs, MD012NoMultipleBlanks, MD013Config, MD013LineLength,
-    MD047SingleTrailingNewline, MD051LinkFragments,
+    MD031BlanksAroundFences, MD047SingleTrailingNewline, MD051LinkFragments,
 };
 use rumdl_lib::types::LineLength;
 
@@ -38,13 +38,17 @@ pub(crate) fn anchor_rules() -> Vec<Box<dyn RumdlRule>> {
 const NEVER_WRAP_COLUMN: usize = 100_000;
 
 /// The curated auto-fixable style set. These are the universally-agreed markdown
-/// hygiene rules (trailing spaces, hard tabs, blank-line runs, final newline);
-/// `reflow` adds paragraph re-wrapping (MD013) in the mode the caller picked.
+/// hygiene rules (trailing spaces, hard tabs, blank-line runs, blank lines around
+/// fences, final newline); `reflow` adds paragraph re-wrapping (MD013) in the mode
+/// the caller picked.
 pub(crate) fn style_rules(reflow: Reflow) -> Vec<Box<dyn RumdlRule>> {
     let mut rules: Vec<Box<dyn RumdlRule>> = vec![
         Box::new(MD009TrailingSpaces::new(2, false)),
         Box::new(MD010NoHardTabs::new(4)),
         Box::new(MD012NoMultipleBlanks::new(1)),
+        // `true`: a fence nested in a list item needs its blank lines too — the
+        // renderer swallows the fence without them wherever it sits.
+        Box::new(MD031BlanksAroundFences::new(true)),
         Box::new(MD047SingleTrailingNewline),
     ];
     if let Some(config) = md013_config(reflow) {
