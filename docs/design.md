@@ -42,7 +42,7 @@ Rules are kebab-case, no numeric codes. Every rule is on by default and individu
 - `link-target` — a relative markdown link points at a file that exists on disk; extensionless wiki-style links try `.md`. Own-implemented on the shared reference-extraction core (native byte spans for `mv`), not `rumdl_lib` MD057 — MD057 duplicates existence-checking the core already does and gives no span the extractor lacks
 - `anchor-resolves` — a `#fragment`, in-file or `other.md#section`, resolves to an actual heading, honoring GitHub anchor-slug rules (via `rumdl_lib` MD051)
 - `import-target` — an `@path` import in an always-loaded file (`CLAUDE.md`, `AGENTS.md`, `SKILL.md`) resolves on disk. These fail *silently* at runtime, so nothing else catches a broken one
-- `bare-path` — a backticked, file-shaped path in markdown prose (interior slash, real-looking extension) exists relative to the file or repo root; git-ignored candidates are skipped as environment artifacts
+- `bare-path` — a backticked, file-shaped path in markdown prose (interior slash, real-looking extension) exists relative to the file or repo root; git-ignored candidates are skipped as environment artifacts. A path that lives outside the repo by construction (`~/.writer/config.toml`) is declared in `[bare-path] external` — globs matched against the backticked text — and skipped everywhere, so one legitimate path never forces the rule off for a whole file
 - `link-case` — a link target's case matches the committed path exactly. macOS is case-insensitive, so a wrong-cased link passes locally and 404s on case-sensitive CI
 - `code-doc-ref` — a doc path (`docs/…`, `issues/…`) cited inside a *non-markdown* source file exists. Root-relative only — nothing establishes a code file's doc directory. Like `bare-path`, a candidate resolving to a git-ignored path is skipped as an environment artifact
 
@@ -95,6 +95,10 @@ ignore = ["cog-fresh"]
 [markdown-style]
 reflow = "never-wrap"   # one line per paragraph; also "wrap" or the default "off"
 
+# bare-path: backticked paths that live outside the repo, matched as globs.
+[bare-path]
+external = ["~/.writer/config.toml", "~/.cache/writer/**"]
+
 # descriptive-anchor: inert until you declare the stable-ID shapes (regexes).
 [descriptive-anchor]
 patterns = ["ADR-\\d+", "T\\d+", "P\\d+"]
@@ -126,7 +130,7 @@ ignore = ["descriptive-anchor"]
 "vendor/**" = ["bare-path", "file-length"]  # a matched file gets no length check either
 ```
 
-`ignore` disables a rule across the whole repo. `[per-file-ignores]` maps a glob to a rule list; for a given file, the **union** of every matching entry's rules is disabled — the semantics are ruff's, **order-free** (two entries that both match a file simply combine, there is no precedence or re-enable). This applies to *every* rule: a file matched for `file-length` gets no length check, and a doc matched for `status-header` is exempt from the header requirement. A [`Resolver`](../src/config.rs) compiles the globs once and answers `is_enabled(rule, path)` in one place, so the rule bodies never re-implement path scoping. Options that remain per-rule (`reflow`, `patterns`, budgets, the status vocabulary) are **global** — read straight from the rule's table, not resolved per path.
+`ignore` disables a rule across the whole repo. `[per-file-ignores]` maps a glob to a rule list; for a given file, the **union** of every matching entry's rules is disabled — the semantics are ruff's, **order-free** (two entries that both match a file simply combine, there is no precedence or re-enable). This applies to *every* rule: a file matched for `file-length` gets no length check, and a doc matched for `status-header` is exempt from the header requirement. A [`Resolver`](../src/config.rs) compiles the globs once and answers `is_enabled(rule, path)` in one place, so the rule bodies never re-implement path scoping. Options that remain per-rule (`reflow`, `patterns`, `external`, budgets, the status vocabulary) are **global** — read straight from the rule's table, not resolved per path.
 
 ## Cogs
 

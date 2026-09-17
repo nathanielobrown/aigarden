@@ -230,6 +230,50 @@ fn bare_path_skips_a_gitignored_candidate() {
 }
 
 #[test]
+fn bare_path_skips_paths_declared_external() {
+    let dir = tempfile::tempdir().unwrap();
+    // A doc legitimately cites paths that live outside the repo (a user-home config
+    // file). `[bare-path] external` declares them: an exact entry and a glob entry
+    // each suppress their match, while a near-miss outside both is still reported.
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[bare-path]\nexternal = [\"~/.writer/config.toml\", \"~/.cache/writer/**\"]\n",
+    );
+    write(
+        dir.path(),
+        "doc.md",
+        "Set defaults in `~/.writer/config.toml`.\n\
+         Runs land under `~/.cache/writer/runs/latest.json`.\n\
+         Old versions used `~/.writer-old/config.toml` instead.\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+}
+
+#[test]
+fn bad_bare_path_external_glob_is_a_clean_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    // A malformed `external` glob is a config error at load (exit 2) naming the key
+    // and value, not a panic inside the rule.
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[bare-path]\nexternal = [\"[unclosed\"]\n",
+    );
+    write(dir.path(), "doc.md", "# Doc\n");
+    insta::with_settings!({filters => vec![(r"\S*aigarden\.toml", "[CONFIG]")]}, {
+        assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+    });
+}
+
+#[test]
+fn explain_bare_path_documents_external() {
+    // bare-path's one option must surface in `explain`, with its default and purpose.
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "bare-path"]));
+}
+
+#[test]
 fn code_doc_ref_skips_a_gitignored_candidate() {
     let dir = tempfile::tempdir().unwrap();
     // Same environment-artifact rule for a doc path cited in source: a reference to a

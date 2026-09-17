@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[bare-path]: bare path `~/.writer-old/config.toml` does not exist
+ --> doc.md:3:20
+  |
+3 | Old versions used `~/.writer-old/config.toml` instead.
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+aigarden: 1 finding
+
+----- stderr -----

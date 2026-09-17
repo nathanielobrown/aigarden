@@ -1,0 +1,27 @@
+---
+source: tests/cli.rs
+info:
+  program: aigarden
+  args:
+    - explain
+    - bare-path
+---
+success: true
+exit_code: 0
+----- stdout -----
+bare-path — a backticked file-shaped path in markdown prose exists
+Status: report-only
+
+What it checks
+  A backticked, file-shaped path in markdown prose exists, resolved against the file's own directory or the repo root. Shell/glob metacharacters, `NNNN` placeholders, and markdown-link labels are not treated as paths; a candidate resolving to a gitignored path is skipped as an environment artifact, and one matching an `external` glob is skipped as living outside the repo.
+
+Config [bare-path]
+  external (default: []) — globs matched against the backticked text for paths that live outside the repo, e.g. ["~/.writer/config.toml", "~/.cache/writer/**"]; a match is never a finding
+
+Example finding
+  bare path `src/missing.rs` does not exist
+
+Fix
+  No autofix — a finding needs a human decision
+
+----- stderr -----

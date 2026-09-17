@@ -53,6 +53,9 @@ pub struct Config {
     /// `descriptive-anchor`: a stable-ID link must carry descriptive text.
     #[serde(default)]
     pub descriptive_anchor: DescriptiveAnchorConfig,
+    /// `bare-path`: backticked paths that legitimately live outside the repo.
+    #[serde(default)]
+    pub bare_path: BarePathConfig,
     /// `status-header`: the terminal-status "frozen docs" contract and exemption.
     /// The config type lives with its rule ([`crate::rules::status_header`]).
     #[serde(default)]
@@ -70,6 +73,17 @@ pub struct DescriptiveAnchorConfig {
     /// (a citation) or already carries an em dash (already descriptive).
     #[serde(default)]
     pub patterns: Vec<String>,
+}
+
+/// `bare-path`: the one escape hatch finer than turning the rule off for a file.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct BarePathConfig {
+    /// Globs matched against the raw backticked text. A path documented here lives
+    /// outside the repo by construction (`~/.writer/config.toml`, `/etc/hosts`), so
+    /// its absence is not a finding. A match suppresses the path everywhere.
+    #[serde(default)]
+    pub external: Vec<String>,
 }
 
 /// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
@@ -316,6 +330,10 @@ impl<'a> Resolver<'a> {
     pub(crate) fn descriptive_anchor(&self) -> &'a DescriptiveAnchorConfig {
         &self.config.descriptive_anchor
     }
+
+    pub(crate) fn bare_path(&self) -> &'a BarePathConfig {
+        &self.config.bare_path
+    }
 }
 
 /// The loaded config plus the directory it was found in (the display root).
@@ -361,9 +379,10 @@ impl Config {
 impl Config {
     /// Fail fast on any config value a rule would otherwise compile lazily (and
     /// panic on): every budget value and glob, every `descriptive-anchor` pattern,
-    /// and every rule name in `ignore`/`per-file-ignores` (validated against the
-    /// live registry, so there is no hand-kept second list). A bad value is a clean
-    /// config error (exit 2) naming the offending key.
+    /// every `bare-path` external glob, and every rule name in
+    /// `ignore`/`per-file-ignores` (validated against the live registry, so there
+    /// is no hand-kept second list). A bad value is a clean config error (exit 2)
+    /// naming the offending key.
     fn validate(&self) -> Result<()> {
         // Budget values (exactly one metric) and their globs.
         let mut budget_maps: Vec<&IndexMap<String, BudgetValue>> =
@@ -385,6 +404,10 @@ impl Config {
         for glob in &self.status_header.files {
             Glob::new(glob)
                 .with_context(|| format!("invalid `status-header` files glob `{glob}`"))?;
+        }
+        for glob in &self.bare_path.external {
+            Glob::new(glob)
+                .with_context(|| format!("invalid `bare-path` external glob `{glob}`"))?;
         }
         // `inherits-from` names a sibling by basename; a path here would match no
         // file and silently disable directory items, so reject it at load.

@@ -13,8 +13,8 @@ use crate::rules::resolve::{
     case_exact, is_checkable_local, is_gitignored, resolve_existing, resolve_from_file,
     resolve_from_root,
 };
-use crate::rules::{Explanation, NO_CONFIG, Rule, RuleContext};
-use crate::walk::SourceFile;
+use crate::rules::{ConfigKey, Explanation, NO_CONFIG, Rule, RuleContext};
+use crate::walk::{SourceFile, build_glob_set};
 
 /// Build a spanned diagnostic for a reference finding.
 fn finding(
@@ -149,7 +149,8 @@ targets are flagged, so a genuine 404 stays link-target's alone (no double repor
 }
 
 /// `bare-path`: a backticked file-shaped path in prose exists, resolved against
-/// the file's own directory or the repo root.
+/// the file's own directory or the repo root. `[bare-path] external` globs name
+/// paths that live outside the repo and are skipped.
 pub(crate) struct BarePath;
 
 impl Rule for BarePath {
@@ -167,8 +168,15 @@ impl Rule for BarePath {
             checks: "A backticked, file-shaped path in markdown prose exists, resolved against \
 the file's own directory or the repo root. Shell/glob metacharacters, `NNNN` placeholders, and \
 markdown-link labels are not treated as paths; a candidate resolving to a gitignored path is \
-skipped as an environment artifact.",
-            config: NO_CONFIG,
+skipped as an environment artifact, and one matching an `external` glob is skipped as living \
+outside the repo.",
+            config: &[ConfigKey {
+                key: "external",
+                default: "[]",
+                purpose: "globs matched against the backticked text for paths that live \
+outside the repo, e.g. [\"~/.writer/config.toml\", \"~/.cache/writer/**\"]; a match is never \
+a finding",
+            }],
             example: "bare path `src/missing.rs` does not exist",
             fix: None,
             config_gated: false,
@@ -176,6 +184,9 @@ skipped as an environment artifact.",
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let gitignore = crate::walk::root_gitignore(ctx.root);
+        // Globs are validated at config load; compile once for the whole run.
+        let external = build_glob_set(&ctx.resolver.bare_path().external)
+            .expect("`bare-path` external globs validated at config load");
         let mut diagnostics = Vec::new();
         for file in ctx.files.iter().filter(|f| {
             is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
@@ -187,6 +198,10 @@ skipped as an environment artifact.",
                 let Some(path) = reference.path.as_deref() else {
                     continue;
                 };
+                // Declared to live outside the repo: its absence is expected.
+                if external.is_match(path) {
+                    continue;
+                }
                 let from_file = resolve_from_file(&file.abs_path, path);
                 let from_root = resolve_from_root(ctx.root, path);
                 // A candidate resolving to a gitignored path is an environment

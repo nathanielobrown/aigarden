@@ -115,7 +115,7 @@ pub(crate) struct ConfigKey {
     pub(crate) purpose: &'static str,
 }
 
-/// The config surface of a rule with no options of its own — the reference rules.
+/// The config surface of a rule with no options of its own — most reference rules.
 /// Toggle these with the top-level `ignore` / `[per-file-ignores]`.
 pub(crate) const NO_CONFIG: &[ConfigKey] = &[];
 

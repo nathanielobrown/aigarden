@@ -16,3 +16,7 @@
 "src/rules/status_header.rs" = ["code-doc-ref"]      # tests cite example `issues/*.md`, `plans/*.md` status docs
 "src/config.rs" = ["code-doc-ref"]                   # config docstrings show example budget paths
 "src/cli.rs" = ["code-doc-ref"]                      # `--config` help text names an example path
+
+# docs/design.md shows `[bare-path] external` with a user-home path as its example.
+[bare-path]
+external = ["~/.writer/config.toml"]
