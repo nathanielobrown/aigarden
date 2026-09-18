@@ -1,26 +1,26 @@
-# Working guide for AI agents
+# Contributor Guide for AI Agents
 
-`aigarden` is a Rust CLI that lints and maintains repositories for AI-agent + human collaboration: link/reference integrity, context-size budgets, and generated-content freshness. See `docs/design.md` for the architecture and rule catalog, `docs/roadmap.md` for what is deliberately out of v1.
+`aigarden` is a Rust CLI that enforces link integrity, context-size budgets, and freshness for generated content in mixed AI-human repositories. See `docs/design.md` for architecture and rules, and `docs/roadmap.md` for out-of-scope features.
 
-This is an early, single-user, pre-1.0 project — make the clean breaking change, skip compat shims.
+This is an early pre-1.0 project with a single user: make breaking changes cleanly and skip compatibility shims.
 
-## Commands
+## Toolchain and Commands
 
-Use `mise` (the toolchain is pinned in `rust-toolchain.toml`):
+The toolchain is pinned in `rust-toolchain.toml`. Run workflows using `mise`:
 
-- `mise run check` — the one gate: `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` + `cargo test`. Green before you call a task done
-- `mise run build` / `format` / `lint` / `test` — individual steps
-- `cargo insta test --review` — run snapshot tests and review new/changed snapshots interactively
-- `cargo insta accept` — accept pending snapshots after you've read the diff
+- `mise run check`: The required gate. Runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
+- `mise run build` / `format` / `lint` / `test`: Run individual pipeline steps.
+- `cargo insta test --review`: Run snapshot tests and review modifications interactively.
+- `cargo insta accept`: Accept reviewed snapshot diffs.
 
-## How we work here
+## Engineering Rules
 
-- **TDD** — write the failing test first, then the code. Snapshot tests (`insta`, `insta-cmd`) are the backbone: a rule's diagnostics and a CLI run's whole output are captured as snapshots
-- **Never hand-edit a snapshot file** — regenerate with insta and review the diff. A snapshot you typed by hand tests nothing
-- **Prefer `#[expect(...)]` over `#[allow(...)]`** for suppressions — `expect` warns when the suppression becomes unnecessary, so dead exceptions self-report
-- **Fail fast, crash loud** — validate config at startup, never squash an error into a silent skip or empty pass. Zero-files-found is a bug, not a no-op
-- **All user-facing output goes through the diagnostics/output layer** — `print_stdout`/`print_stderr`/`dbg!` are clippy-warned; return errors up the stack instead
+- **Write failing tests first.** Snapshot tests with `insta` and `insta-cmd` form the backbone. Capture rule diagnostics and full CLI execution output as snapshots.
+- **Never hand-edit snapshot files.** Regenerate them via `insta` and inspect the diff.
+- **Prefer `#[expect(...)]` over `#[allow(...)]`.** Unneeded suppressions will warn automatically.
+- **Fail fast.** Validate configurations at startup. Never squash errors into silent skips or empty passes; zero matched files is a bug.
+- **Route output through the diagnostics layer.** Do not use `print_stdout`, `print_stderr`, or `dbg!`, which trigger Clippy warnings. Return errors up the stack.
 
-## Comments and docstrings
+## Documentation Standards
 
-Brevity is a feature — comments are read far more than written. Write docstrings for a primary interface's callers; keep them 1–3 lines. Comment the *why* at the line it explains, not the *what*. Every non-default config setting and every dependency gets a one-line purpose note. Tests are the exception: comment them liberally to tell the case's story.
+Keep docstrings between 1 and 3 lines, focused on callers of primary interfaces. Explain the *why* directly at the relevant line. Add a one-line purpose note for each dependency and non-default configuration setting. Comment test cases liberally.

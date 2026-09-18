@@ -1,38 +1,42 @@
-# aigarden roadmap
+# Roadmap
 
-Future ideas, deliberately out of v1. v1 is the general core: reference integrity, size budgets, markdown style, and cogs (see [design.md](design.md)). Everything here is a candidate for later, roughly in order of how general it is.
+Post-v1 proposals ordered by generality. The v1 baseline provides reference integrity, size budgets, Markdown style, and cogs (see [design.md](design.md)).
 
-## External link liveness
+## External link verification
 
-An `--online` mode for the link rules: resolve external URLs over the network, not just filesystem-resolvable references. This needs a network-checker's accept-list for anti-bot responses (treat 403/503 from sites that block non-browser clients as alive, not rot) and a run cadence of its own — external links rot on the doc's schedule, not the repo's, so this belongs on-demand and periodically, never in the fast inner-loop `check`. Keep the async network dependency tree out of the offline core.
+Add an `--online` mode to validate external URLs alongside local filesystem targets.
+- **Bot-blocking tolerances**: Treat HTTP 403 and 503 responses from scraper-hostile domains as active links rather than rot.
+- **Execution profile**: External targets degrade independently of local commits. Run this check on a scheduled or manual trigger, keeping async network dependencies out of the local `check` path.
 
-## Generalized versions of single-repo gates
+## Generalized repo checks
 
-Gates that exist today as one-off, hardcoded checks — worth porting only once generalized behind config:
+Convert hardcoded single-repo validations into configurable gates:
 
-- **Numbered-section citations** — a `§N` (or configurable pattern) in source must match a numbered heading in a specific design doc. Generalize to a config triple `(citation_pattern, doc_path, source_glob)` rather than hardcoding one doc and one source tree
-- **Diagram-tree integrity** — a directory of diagrams as a zoom hierarchy crossed with named axes: axis-tag filenames, no dangling drill-down links, no orphan sub-diagrams. Highly domain-shaped; port only if a second repo wants it
+- **Numbered citations**: Generalize section references like `§N` using a `(citation_pattern, doc_path, source_glob)` config triple, replacing logic tied to specific files.
+- **Diagram hierarchies**: Validate cross-axis zoom directories to detect orphan sub-diagrams and broken drill-down links. Retain this check until multiple projects require it.
 
-**Status-header contracts** — the terminal-status "frozen docs" exemption, mycelia's single biggest parity gap — has **landed** as the generic `status-header` rule (see [design.md](design.md)). It closes the entire mycelia shadow-run residual: 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) docs, zero live.
+The terminal-status frozen-docs check has already shipped as the generic `status-header` rule (see [design.md](design.md)). In mycelia shadow runs, it resolved all 193 bare-path findings across 40 frozen (`done`/`implemented`/`wontfix`) documents with zero remaining failures.
 
-## Token/char budgets inside code files
+## In-code token and character limits
 
-v1 budgets whole files. A finer rule: budget the **doc content within** a code file — a module or function docstring, or the running total of comment prose — in tokens, so an always-loaded source file can't bloat its guidance without tripping a gate. Extends the chars/tokens metric from file-level to span-level.
+While v1 budgets whole files, this gate enforces token limits on documentation blocks inside code files, including function docstrings, module headers, and aggregate comment prose. This prevents always-loaded source context from silently bloating.
 
-## Self-consistency gates
+## Self-consistency rules
 
-- **CI-vs-task drift** — assert that a CI workflow's per-gate step list matches the task runner's aggregate definition, so the two hand-kept parallel lists can't silently diverge. A natural thing for aigarden to dogfood on its own repo
-- **Config schema** — emit a JSON schema for `aigarden.toml` (à la ruff/rumdl) for editor completion and validation
+- **Workflow drift detection**: Compare CI pipeline definitions against task runner lists to prevent parallel execution definitions from silently desynchronizing.
+- **Configuration schema**: Publish a JSON schema for `aigarden.toml` to power editor completions and schema validation.
 
-## More cog generators
+## Additional cog generators
 
-Beyond the built-in trio, generators seen in practice: an ADR index that flattens links inside status lines, a layout tree that lifts each entry's first descriptive line from the target file, symlink "farms" materializing a live-items view. Add as demand appears; the embedded-shell escape hatch covers the long tail meanwhile.
+The built-in generators and embedded-shell fallback handle basic transformations. Further built-ins depend on user demand:
 
-The mycelia shadow-run (see [mycelia-parity.md](mycelia-parity.md)) grounds two of these:
+- **`first-sentences` extensions**: Grounded by mycelia parity tests (see [mycelia-parity.md](mycelia-parity.md)). Features needed for total parity include link compaction (`ADR-NNNN` conversions, target backticking), stripping `_(future)_` and `_(extended)_` markers, prose-only block suppression, and per-line character budgets.
+- **Curated layout tree**: Generate an annotated structure from a DSL that lifts descriptive headers and docstrings from selected source files, rather than mirroring raw directory trees via `file-tree`.
+- **Specialized layouts**: Format ADR indices with flattened status links and generate symlink structures for active documentation targets.
 
-- **`first-sentences` projection options** — the built-in reproduces mycelia's `CONTEXT_SHORT.md` structure and first-sentence cutting faithfully, but mycelia's generator also **compacts links** (an ADR link → bare `ADR-NNNN`, others → a backticked target), **drops** `_(future)_`/`_(extended)_`-marked terms, **enforces** per-line and total char budgets, and **suppresses** prose-only sections. These are opt-in flags a cutover would need
-- **Curated layout tree** — `file-tree` dumps a whole real directory; mycelia's Layout is a *curated* subset with hand-authored annotations and docstring-lifting. A different generator (DSL-driven, as noted above), not a variant of `file-tree`
+## Explicit exclusions
 
-## Explicitly out of scope
-
-Wrapping external linters/formatters/typecheckers (ruff, pyrefly, prettier), API-contract or test-fixture generation, and operator tooling (dev servers, metrics, release plumbing) are **not** aigarden's job — it is repo hygiene for AI+human navigation, not a build system.
+aigarden focuses strictly on repo navigation hygiene for AI and human maintainers. The following areas are out of scope:
+- Wrapping linters, formatters, or typecheckers (`ruff`, `pyrefly`, `prettier`)
+- Generating API contracts, mocks, or test fixtures
+- Operator infrastructure, local dev servers, metrics, and release workflows

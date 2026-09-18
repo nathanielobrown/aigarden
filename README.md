@@ -1,35 +1,52 @@
 # aigarden 🌱
 
-A Rust CLI that lints and maintains repositories built for **AI agents and humans to collaborate in**.
+A Rust CLI that lints and maintains repositories shared by AI agents and human developers.
 
-When agents write most of the code and docs, three things rot faster than a human reviewer can catch:
+Agent-driven repositories rot quickly in three distinct ways:
 
-- **Reference integrity** — links, `@`-imports, and bare file paths in docs drift as files move; a broken `@import` fails silently at runtime, and a wrong-cased path passes on macOS but 404s on Linux CI
-- **Context-size budgets** — files that agents load every session (like `CLAUDE.md`) have a token budget; blow it and every future session pays. Code files have line budgets for human readability
-- **Generated-content freshness** — indexes, layout trees, and summaries computed from the repo go stale the moment their source changes
+- **Reference drift**: Moved files break links, `@`-imports, and bare paths. Case mismatches pass on macOS but fail on Linux CI, while broken `@import` directives fail silently at runtime.
+- **Budget overruns**: Bloated context files (such as `CLAUDE.md`) waste token budgets on every agent run, while oversized code files degrade human readability.
+- **Stale generated content**: Repo-derived summaries, index files, and layout trees drift immediately when source files change.
 
-`aigarden` mechanizes all three. It runs every check in one pass and reports everything (no stop-at-first-failure), shares one reference-extraction core between linting and the reference-rewriting `mv`, and defines every exclusion once in config.
+`aigarden` validates all three areas in a single non-halting pass, shares an extraction core across linting and path-rewriting commands, and applies exclusions from a unified configuration.
 
-## Install
+## Quickstart
 
-Every [release](https://github.com/nathanielobrown/aigarden/releases) ships prebuilt binaries for linux x86_64 and macOS arm64, so you don't need a Rust toolchain.
+```sh
+aigarden check                 # run every lint layer over the repo
+aigarden check --fix           # apply automated fixes
+aigarden cog --check           # verify generated blocks match their sources
+aigarden cog --write           # regenerate stale blocks
+aigarden mv old.md new/dir/    # move a file and update all references to it
+aigarden rules                 # list rules and their statuses
+aigarden explain bare-path     # print a rule's contract
+aigarden check --output-format json   # emit JSON for CI or agent pipelines
+```
 
-**With mise:**
+Configuration resides in `aigarden.toml` at the repository root, supporting rule toggles and per-glob thresholds. An empty file uses the default settings. See `docs/design.md` for rule catalogs and configuration details.
+
+## Installation
+
+Prebuilt binaries for `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` accompany each [release](https://github.com/nathanielobrown/aigarden/releases).
+
+### mise
 
 ```sh
 mise use github:nathanielobrown/aigarden@0.1.1
 ```
 
-Pin an exact version rather than `latest` — mise resolves a `latest` request once and then treats it as satisfied, so later releases never arrive (no `mise upgrade` or cache clear dislodges it). If you pin a version minutes after it's cut, mise's release-age quarantine will refuse it; add `minimum_release_age_excludes = ["github:nathanielobrown/aigarden"]` under `[settings]`.
+> **Note:** Pin to an exact release rather than `latest`. mise caches the initial resolution of `latest` permanently across upgrades. If installing immediately after a release, bypass the age quarantine by adding `minimum_release_age_excludes = ["github:nathanielobrown/aigarden"]` under `[settings]`.
 
-**Direct download:**
+### Direct Download
 
 ```sh
 VERSION=0.1.1 TARGET=aarch64-apple-darwin   # or x86_64-unknown-linux-gnu
 curl -fsSL "https://github.com/nathanielobrown/aigarden/releases/download/v$VERSION/aigarden-$VERSION-$TARGET.tar.gz" | tar -xz
 ```
 
-**From source**, which needs the toolchain pinned in `rust-toolchain.toml`:
+### From Source
+
+Requires the toolchain specified in `rust-toolchain.toml`:
 
 ```sh
 cargo install --path .
@@ -37,23 +54,8 @@ cargo install --path .
 
 ## Releasing
 
-Bump `version` in `Cargo.toml` and merge to main — `.github/workflows/release.yml` builds and publishes any version on main that has no release yet.
-
-## Quickstart
-
-```sh
-aigarden check                 # run every lint layer over the current repo
-aigarden check --fix           # apply fixes where a rule supports them
-aigarden cog --check           # fail if any generated block is stale
-aigarden cog --write           # regenerate the stale blocks
-aigarden mv old.md new/dir/    # move a file and rewrite every reference to it
-aigarden rules                 # list the rules and their status
-aigarden explain bare-path     # print one rule's full contract
-aigarden check --output-format json   # machine-readable output for CI/agents
-```
-
-Configuration lives in `aigarden.toml` at the repo root — strong defaults, every rule toggleable, per-glob thresholds. An empty file mostly just works. See `docs/design.md` for the config model and the full rule catalog.
+Update `version` in `Cargo.toml` and merge to `main`. The `.github/workflows/release.yml` workflow triggers automatically to build and publish unreleased versions on `main`.
 
 ## Status
 
-Pre-1.0 and single-user: built to be published, but shaped around one person's repos first. Expect breaking changes to the config format and rule names. The CLI shell is in place; rules are landing incrementally.
+Pre-1.0 and single-user. Built for publication, but tailored initially to the author's workflow. Rule names and configuration schemas remain subject to breaking changes as rules land incrementally.
