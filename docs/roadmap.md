@@ -30,7 +30,7 @@ While v1 budgets whole files, this gate enforces token limits on documentation b
 
 The built-in generators and embedded-shell fallback handle basic transformations. Further built-ins depend on user demand:
 
-- **`first-sentences` extensions**: Grounded by mycelia parity tests (see [mycelia-parity.md](mycelia-parity.md)). Features needed for total parity include link compaction (`ADR-NNNN` conversions, target backticking), stripping `_(future)_` and `_(extended)_` markers, prose-only block suppression, and per-line character budgets.
+- **`first-sentences` extensions**: Grounded by mycelia parity tests. Features needed for total parity include link compaction (`ADR-NNNN` conversions, target backticking), stripping `_(future)_` and `_(extended)_` markers, prose-only block suppression, and per-line character budgets.
 - **Curated layout tree**: Generate an annotated structure from a DSL that lifts descriptive headers and docstrings from selected source files, rather than mirroring raw directory trees via `file-tree`.
 - **Specialized layouts**: Format ADR indices with flattened status links and generate symlink structures for active documentation targets.
 
