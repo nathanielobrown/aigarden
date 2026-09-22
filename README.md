@@ -5,7 +5,7 @@ A Rust CLI that lints and maintains repositories shared by AI agents and human d
 Agent-driven repositories rot quickly in three distinct ways:
 
 - **Reference drift**: Moved files break links, `@`-imports, and bare paths. Case mismatches pass on macOS but fail on Linux CI, while broken `@import` directives fail silently at runtime.
-- **Budget overruns**: Bloated context files (such as `CLAUDE.md`) waste token budgets on every agent run, while oversized code files degrade human readability.
+- **Budget overruns**: Bloated context files (such as `AGENTS.md`) waste token budgets on every agent run, while oversized code files degrade human readability.
 - **Stale generated content**: Repo-derived summaries, index files, and layout trees drift immediately when source files change.
 
 `aigarden` validates all three areas in a single non-halting pass, shares an extraction core across linting and path-rewriting commands, and applies exclusions from a unified configuration.
