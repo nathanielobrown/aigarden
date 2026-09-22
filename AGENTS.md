@@ -8,6 +8,7 @@ This is an early pre-1.0 project with a single user: make breaking changes clean
 
 The toolchain is pinned in `rust-toolchain.toml`. Run workflows using `mise`:
 
+- `mise run setup`: Run once per clone. Installs the toolchain pinned in `rust-toolchain.toml` and fetches the locked dependencies.
 - `mise run check`: The required gate. Runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
 - `mise run build` / `format` / `lint` / `test`: Run individual pipeline steps.
 - `cargo insta test --review`: Run snapshot tests and review modifications interactively.
