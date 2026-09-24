@@ -14,6 +14,10 @@ The toolchain is pinned in `rust-toolchain.toml`. Run workflows using `mise`:
 - `cargo insta test --review`: Run snapshot tests and review modifications interactively.
 - `cargo insta accept`: Accept reviewed snapshot diffs.
 
+## Branches and Pull Requests
+
+Agents work on a topic branch in a worktree and finish with a PR; never commit to `main`. Before opening a PR, invoke the `pr` skill, which follows `docs/pull-requests.md`. Every PR lands by squash, and only when directed.
+
 ## Engineering Rules
 
 - **Write failing tests first.** Snapshot tests with `insta` and `insta-cmd` form the backbone. Capture rule diagnostics and full CLI execution output as snapshots.
