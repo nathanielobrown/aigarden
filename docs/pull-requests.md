@@ -31,6 +31,7 @@ Stacks are rare. When needed, use GitHub native stacks via the `gh stack` extens
 - **Descriptions:** Create one fact sheet and one body per PR. State the overall stack goal in the bottom PR (one or two sentences); upper PRs should reference the bottom PR instead. Do not write "part n of m"; GitHub renders the stack map.
 - **Review fixes:** Commit fixes to the layer owning the change, then run `gh stack rebase --upstack` and `gh stack push`. Never rebase or amend layers using plain git; gh-stack bug #193 duplicates commits into upper layers.
 - **Agent commands:** Run non-interactive `gh stack` subcommands only (`view --json`, `submit --auto`, explicit branch names). Never run bare `modify`.
+- **Starting and submitting:** Fast-forward local `main` to `origin/main` before `gh stack init`, which records local `main` as the stack's base. `gh stack submit` opens each PR with a generated title and body, so afterwards set each layer's real title and composed body with `gh pr edit <n> --title "<emoji> <statement>" --body-file <file>`.
 
 ## What makes a PR done
 
@@ -46,14 +47,14 @@ The diff shows *what* changed; the description explains *why* and highlights cho
 
 ### Authoring process
 
-1. **Write the fact sheet:** The authoring agent (usually Claude) generates `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff origin/main...HEAD` and test outputs, never from the task plan. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
+1. **Write the fact sheet:** The authoring agent (usually Claude) generates `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
 2. **Compose the body with Gemini:** Run Gemini headlessly via pi:
 
    ```bash
-   pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet and output paths>"
+   timeout 900 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet, diff base and output paths>" < /dev/null
    ```
 
-   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. It may only inspect the repository to verify claims against the diff or quote code verbatim; it must not introduce topics absent from the fact sheet. Gemini produces clearer prose than Claude.
+   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. It may only inspect the repository to verify claims against the diff or quote code verbatim; it must not introduce topics absent from the fact sheet. Gemini produces clearer prose than Claude. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
 3. **Verify facts:** The submitting agent checks the body against the diff for factual accuracy (not style), manually reviews any Mermaid syntax (see [Diagrams](#diagrams)), and opens the PR using `gh pr create --body-file <file>`.
 4. **Recompose on substantial changes:** Regenerate the body if the scope changes, design decisions shift, new defects appear, or the stack structure changes. Small review fixes do not require recomposition. Apply updates via `gh pr edit --body-file <file>`.
 

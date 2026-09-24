@@ -11,12 +11,14 @@ Open a reviewable PR with the procedure below. The full rules are in `docs/pull-
 
 1. **Shape the branch**: One branch per task off `origin/main`, in a worktree. Keep history linear by rebasing. Shape the changes into atomic commits with `<emoji> <statement>` subjects. Run `mise run check` until it passes on the final commit; it is the only gate, because no CI runs on PRs.
 2. **Sync documentation**: Update `README.md`, `AGENTS.md`, `docs/design.md` and `docs/roadmap.md` wherever the change affects them, and commit the edits on the branch. There is no doc-writer subagent; do it yourself.
-3. **Draft the fact sheet**: Write `handoffs/pr-facts-<topic>.md` in the primary checkout from the final `git diff origin/main...HEAD` and test output, never from the plan. Follow [fact_sheet.md](fact_sheet.md).
+3. **Draft the fact sheet**: Write `handoffs/pr-facts-<topic>.md` in the primary checkout from the final `git diff <base>...HEAD` and test output, never from the plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow [fact_sheet.md](fact_sheet.md).
 4. **Compose the description**: Run the Gemini composer headless through pi with [composer.md](composer.md), writing `handoffs/pr-body-<topic>.md`:
 
    ```bash
-   pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "Compose the PR description from <fact sheet path>. Write it to <body path>."
+   timeout 900 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "Compose the PR description from <fact sheet path>. The diff base is <base>. Write it to <body path>." < /dev/null
    ```
+
+   Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
 
 5. **Review the body**: Check `pr-body-<topic>` for factual errors against the diff only, not style. Check that the prose fits the tier's word budget (Light ~75, Standard ~300, Deep ~500), that empty sections are omitted, and that no handoff path, local path or private link appears (the repo is public).
 6. **Check diagrams by hand**: This repo has no `diagram-check` task. For each Mermaid block, confirm `snake_case` node ids, `<br>` line breaks, and quoted labels that contain punctuation.

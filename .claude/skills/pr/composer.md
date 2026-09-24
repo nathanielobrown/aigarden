@@ -98,9 +98,9 @@ When composing descriptions for stacked PRs:
 
 Before writing the output file:
 
-1. Run `git diff origin/main...HEAD` to inspect the actual changes on the branch.
+1. Run `git diff <base>...HEAD` to inspect the actual changes on the branch. `<base>` is the diff base your instruction names, or `origin/main` if it names none.
 2. Check every claim, path, and code reference in your draft against that diff.
 3. If your draft claims work absent from the diff, remove or correct the claim.
-4. Verify that the prose word count respects the tier budget.
+4. Count the prose words with a command, leaving out code blocks, diagrams and `<details>` blocks. If the count is over the tier budget, cut and count again.
 5. Verify that empty sections are omitted with no placeholder text.
 6. Write the final description to the requested output path.

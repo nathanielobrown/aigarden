@@ -1,6 +1,6 @@
 # Pull request fact sheet
 
-The authoring agent (Claude) fills in this fact sheet from the final `git diff origin/main...HEAD` and test output, never from the initial plan.
+The authoring agent (Claude) fills in this fact sheet from the final `git diff <base>...HEAD` and test output, never from the initial plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer.
 
 The composer agent reads this file to draft the pull request description.
 
