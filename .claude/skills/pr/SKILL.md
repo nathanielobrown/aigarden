@@ -11,13 +11,13 @@ Open a reviewable PR with the procedure below. The full rules are in `docs/pull-
 
 1. **Shape the branch**: One branch per task off `origin/main`, in a worktree. Keep history linear by rebasing. Shape the changes into atomic commits with `<emoji> <statement>` subjects. Run `mise run check` until it passes on the final commit; it is the only gate, because no CI runs on PRs.
 2. **Sync documentation**: Update `README.md`, `AGENTS.md`, `docs/design.md` and `docs/roadmap.md` wherever the change affects them, and commit the edits on the branch. There is no doc-writer subagent; do it yourself.
-3. **Write the fact sheet**: Write `handoffs/pr-facts-<topic>.md` in the primary checkout from the final `git diff <base>...HEAD` and test output, never from the plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow [fact_sheet.md](fact_sheet.md).
+3. **Write the fact sheet**: Write `handoffs/pr-facts-<topic>.md` in the primary checkout, a verbose draft of the PR that the composer revises. It comes from the final `git diff <base>...HEAD` and test output, never from the plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow [fact_sheet.md](fact_sheet.md).
    - Write it yourself; you did the work. This repo has no auditor agent. Never hand the job to an agent that knows the work only from a brief.
    - For a change that is hard to grasp from text and one diagram, build an interactive HTML explainer, upload it with `save`, and add the link to the fact sheet's Visuals (`docs/pull-requests.md`).
 4. **Compose the description**: Run the Gemini composer headless through pi with [composer.md](composer.md), writing `handoffs/pr-body-<topic>.md`:
 
    ```bash
-   timeout 900 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "Compose the PR description from <fact sheet path>. The diff base is <base>. Write it to <body path>." < /dev/null
+   timeout 1800 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "Compose the PR description from <fact sheet path>. The diff base is <base>. Write it to <body path>." < /dev/null
    ```
 
    Keep the `< /dev/null`: without it, `pi -p` waits on input forever.

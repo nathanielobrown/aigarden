@@ -47,16 +47,18 @@ The diff shows *what* changed; the description explains *why* and highlights cho
 
 ### Authoring process
 
-1. **Write the fact sheet:** The session that did the work (usually Claude) writes `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
-   - The fact sheet leaves out what changed; the composer reads that from the diff. Its **Why** field carries the motivation, in the author's words.
+1. **Write the fact sheet, a verbose draft of the PR:** The session that did the work (usually Claude) writes `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
+   - The fact sheet is complete rather than polished: the composer cuts and rewrites it, and reads little else.
+   - **What changed** gives a one-sentence Headline for this PR's net diff, the main changes grouped by purpose, and Background: context a reader might mistake for this PR's work, such as an earlier layer.
+   - **Why** carries the motivation, in the author's words.
    - Never hand the fact sheet to an agent that knows the work only from a brief. Relaying context drops design rationale and judgment calls. This repo has no auditor agent, so the working session always writes it.
 2. **Compose the body with Gemini:** Run Gemini headlessly via pi:
 
    ```bash
-   timeout 900 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet, diff base and output paths>" < /dev/null
+   timeout 1800 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet, diff base and output paths>" < /dev/null
    ```
 
-   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. It summarizes what changed from the diff itself. Rationale, judgment points, design, and verification come strictly from the fact sheet. Gemini produces clearer prose than Claude. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
+   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. Gemini produces clearer prose than Claude. It revises the fact sheet rather than researching the change: everything it writes comes from the fact sheet, and it looks at the repository only to quote a path or identifier exactly. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
 3. **Verify facts:** The session opening the PR checks the body for factual accuracy (not style) and cuts any claim the fact sheet does not support. It manually reviews any Mermaid syntax (see [Diagrams](#diagrams)) and opens the PR using `gh pr create --body-file <file>`.
 4. **Recompose on substantial changes:** Regenerate the body if the scope changes, design decisions shift, new defects appear, or the stack structure changes. Update the fact sheet first, then rerun the composer. Small review fixes do not require recomposition. Apply updates via `gh pr edit --body-file <file>`.
 
