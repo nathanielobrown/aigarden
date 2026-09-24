@@ -1,0 +1,81 @@
+# Answers `@claude` mentions on issues and pull requests. With no `prompt`
+# input, anthropics/claude-code-action runs in its interactive mode: it reads
+# the mention, the thread, and the diff, replies in a comment, and on an open
+# PR pushes commits to the PR branch (on an issue, to a new `claude/` branch).
+#
+# This repo is public, and the workflow still reads a secret. That is safe on
+# two counts: GitHub withholds repository secrets from runs triggered by forks,
+# and the action refuses to run for an author without write access before it
+# touches the token. Neither `allowed_bots` nor `allowed_non_write_users` is
+# set, and they must stay unset — each one widens who can steer the run.
+#
+# Setup outside this file:
+#   1. Install the Claude GitHub App on the repo (https://github.com/apps/claude
+#      or `/install-github-app` inside Claude Code). Without it the action's
+#      OIDC exchange for a GitHub token fails.
+#   2. Add the CLAUDE_CODE_OAUTH_TOKEN repository secret (Settings → Secrets
+#      and variables → Actions) — a subscription-backed token from `claude
+#      setup-token`, used instead of a metered ANTHROPIC_API_KEY.
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+# One run per thread at a time: a second mention on the same PR queues behind
+# the first instead of racing it for the branch. No cancel-in-progress — a
+# half-pushed fix is worse than a queued one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
+
+jobs:
+  claude:
+    # Mentions only. Each event carries its text in a different field, so the
+    # guard reads all four; a comment without `@claude` never starts a runner.
+    # The action then checks that the author has write access to the repo, so
+    # a mention from a stranger (or a bot) gets no run.
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    # Backstop against a wedged run burning subscription time; an answer with
+    # a small fix is a few minutes.
+    timeout-minutes: 30
+    permissions:
+      contents: write # push commits to the PR branch (or a claude/ branch)
+      pull-requests: write # comment on and open PRs
+      issues: write # comment on issues
+      id-token: write # the action's OIDC exchange for the Claude GitHub App token
+      actions: read # read CI results so a red check can be explained
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The action checks out the PR branch itself; history is not needed.
+          fetch-depth: 1
+      # mise pins no tools here (rustup owns the toolchain), but the agent runs
+      # the gates as `mise run <task>`, so the runner needs the task runner.
+      - uses: jdx/mise-action@v4
+      # Reuse the dependency compile across runs, as release.yml does; only
+      # aigarden's own crate is usually dirty.
+      - uses: Swatinem/rust-cache@v2
+      # Toolchain and dependencies before the agent starts: it cannot reason
+      # about a failing test it cannot run. `setup` is `rustup show` (reads
+      # rust-toolchain.toml) plus `cargo fetch`.
+      - run: mise run setup
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Bash is off by default in the action. Scoped to the task runner,
+          # cargo, and git/gh: enough to run the gates and push a fix, not
+          # arbitrary shell. Unscoped Bash belongs to schedule-only workflows,
+          # where no PR author can steer the prompt.
+          claude_args: |
+            --allowedTools "Bash(mise:*),Bash(cargo:*),Bash(git:*),Bash(gh:*)"

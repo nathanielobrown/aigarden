@@ -1,5 +1,10 @@
 # Rust toolchain comes from rust-toolchain.toml (rustup honours it), so mise pins no tools here.
 
+# Bootstrap verb shared with the other managed repos: `rustup show` installs the pinned toolchain, `cargo fetch` the locked deps.
+[tasks.setup]
+description = "Install the pinned toolchain and fetch the locked dependencies"
+run = ["rustup show", "cargo fetch"]
+
 [tasks.build]
 description = "Compile the crate"
 run = "cargo build"
