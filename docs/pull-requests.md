@@ -13,7 +13,7 @@ Use `git` for branches and commits, `gh stack` for stacks, and `gh` for pull req
 - Create one branch per task from `origin/main` in a worktree. Keep commits atomic, using an `<emoji> <statement>` subject (see `git log` for conventions).
 - Keep history linear. When `main` advances, rebase onto `origin/main`. Never merge `main` into your branch.
 - Run `mise run check` until it passes. Push once, only when the branch is ready for review.
-- Update affected docs (`README.md`, `AGENTS.md`, `docs/design.md`, `docs/roadmap.md`) on the branch so changes land together. The authoring agent handles this sync directly; there is no doc-writer subagent.
+- Update affected docs (`README.md`, `AGENTS.md`, `docs/design.md`, `docs/roadmap.md`) on the branch so changes land together. The session that did the work handles this sync directly; there is no doc-writer subagent.
 - Open the PR with `gh pr create --title "<emoji> <statement>" --body-file <file>`. Omit issue or PR numbers from the title. PRs land by squash, so this title becomes the commit subject on `main` alongside an appended `(#N)`. Mark a PR as a draft only when it is not ready for review.
 - Address review comments with new commits. Fixup commits do not need autosquashing because the final squash absorbs them.
 - Land only when directed; see [Landing](#landing).
@@ -47,16 +47,18 @@ The diff shows *what* changed; the description explains *why* and highlights cho
 
 ### Authoring process
 
-1. **Write the fact sheet:** The authoring agent (usually Claude) generates `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
+1. **Write the fact sheet:** The session that did the work (usually Claude) writes `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
+   - The fact sheet leaves out what changed; the composer reads that from the diff. Its **Why** field carries the motivation, in the author's words.
+   - Never hand the fact sheet to an agent that knows the work only from a brief. Relaying context drops design rationale and judgment calls. This repo has no auditor agent, so the working session always writes it.
 2. **Compose the body with Gemini:** Run Gemini headlessly via pi:
 
    ```bash
    timeout 900 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet, diff base and output paths>" < /dev/null
    ```
 
-   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. It may only inspect the repository to verify claims against the diff or quote code verbatim; it must not introduce topics absent from the fact sheet. Gemini produces clearer prose than Claude. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
-3. **Verify facts:** The submitting agent checks the body against the diff for factual accuracy (not style), manually reviews any Mermaid syntax (see [Diagrams](#diagrams)), and opens the PR using `gh pr create --body-file <file>`.
-4. **Recompose on substantial changes:** Regenerate the body if the scope changes, design decisions shift, new defects appear, or the stack structure changes. Small review fixes do not require recomposition. Apply updates via `gh pr edit --body-file <file>`.
+   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. It summarizes what changed from the diff itself. Rationale, judgment points, design, and verification come strictly from the fact sheet. Gemini produces clearer prose than Claude. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
+3. **Verify facts:** The session opening the PR checks the body for factual accuracy (not style) and cuts any claim the fact sheet does not support. It manually reviews any Mermaid syntax (see [Diagrams](#diagrams)) and opens the PR using `gh pr create --body-file <file>`.
+4. **Recompose on substantial changes:** Regenerate the body if the scope changes, design decisions shift, new defects appear, or the stack structure changes. Update the fact sheet first, then rerun the composer. Small review fixes do not require recomposition. Apply updates via `gh pr edit --body-file <file>`.
 
 ### Body layout and word budgets
 
@@ -101,6 +103,7 @@ Visuals communicate changes faster than diffs.
 - **New or altered flows** (such as the rule engine, `cog`, `mv`, or config loading) require a Mermaid diagram.
 - **CLI output changes** require before/after excerpts in a code block. Quote relevant lines from the changed `insta` snapshots rather than dumping the full file.
 - **Performance changes** require a before/after comparison table.
+- **Interactive explainers:** Build an interactive HTML explainer when text and a single diagram cannot convey the change, for example stepping through a rule's findings on real files or filtering a before/after table of recorded output. Build it as one self-contained HTML file (or a directory uploaded with `save <dir> --entry index.html`) from recorded or redacted data only, since anyone with the link can open it. Open it in a browser to confirm it renders without console errors. Save the source in `handoffs/` next to the fact sheet, upload it with `save`, and add the link to the fact sheet's Visuals with one line on what the reader can do there. The description must still stand on its own without it.
 - **Hosting:** Run `save <file>` to upload an asset and print a Markdown snippet (inline image for graphics, a link otherwise).
 
 ### Diagrams
@@ -115,10 +118,10 @@ Because the repository lacks a `diagram-check` task, validate Mermaid syntax by 
 - [ ] Git history is linear on `origin/main` with atomic commits
 - [ ] Stacks use native `gh stack`, planned layers, and 100–400 code lines per PR
 - [ ] Docs are updated in the PR
-- [ ] Fact sheet generated from diff and test runs (`handoffs/pr-facts-<topic>.md`)
+- [ ] Fact sheet generated from diff and test runs (`handoffs/pr-facts-<topic>.md`) by the session that did the work
 - [ ] Body composed by Gemini Flash via `pi` using `.claude/skills/pr/composer.md`
-- [ ] Body verified against diff, matches tier word budget, and omits empty sections
-- [ ] Visuals included where required; Mermaid validated manually
+- [ ] Body checked against the fact sheet for factual errors, matches tier word budget, and omits empty sections
+- [ ] Visuals included where required, and an interactive explainer linked if the change is hard to picture; Mermaid validated manually
 - [ ] Public repo safety: no handoff paths, local file paths, or private URLs in the body
 - [ ] Created via `gh pr create --body-file <file>`
 

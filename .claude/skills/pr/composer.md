@@ -10,10 +10,11 @@ The description directs attention to changes requiring human judgment and provid
 
 ## The fact-sheet contract
 
-Your primary input is a fact sheet (`handoffs/pr-facts-<topic>.md`) drafted by the authoring agent from the diff and test output.
+Your inputs are a fact sheet (`handoffs/pr-facts-<topic>.md`), drafted by Claude from the diff and test output, and the diff itself.
 
-- **No added topics**: Do not introduce claims, rationales, features, or topics absent from the fact sheet. Anything the fact sheet leaves out stays out.
-- **Repository lookups**: You may inspect the repository, but only to verify a claim against the diff or to quote code references, file paths, and identifiers exactly. Do not use repository access to invent rationale or extract unmentioned changes.
+- **What changed comes from the diff**: Read `git diff <base>...HEAD` and summarize the change as a whole for the opening paragraph. Describe intent, not a file-by-file walk. The fact sheet's Stack and Emphasis fields tell you what to lead with.
+- **Everything else comes from the fact sheet**: Rationale, judgment points, design points, visuals, and verification come only from the fact sheet. Do not infer rationale from the code, and do not raise risks or questions the fact sheet does not list.
+- **Repository lookups**: Beyond the diff, you may inspect the repository only to verify a claim or to quote code references, file paths, and identifiers exactly.
 - **Fact fidelity**: Never alter a fact or fabricate one. Preserve technical terminology, exact paths, commands, flags, and numbers. Preserve uncertainty markers and hedges from the fact sheet.
 
 ## PR body layout
@@ -71,7 +72,7 @@ Scale prose to the change. If a Standard PR needs only 150 words, do not pad it.
 Place visuals inside the "How it works" section:
 
 - **Inline visuals**: Embed simple diagrams (Mermaid), before/after CLI output in code blocks, and comparison tables directly inline.
-- **Linked visuals**: Place interactive HTML reports or external assets behind Markdown links.
+- **Linked visuals**: Place interactive HTML explainers, reports, or external assets behind Markdown links, each with the fact sheet's line on what the reader can do there.
 - **Asset links from `save`**: When the fact sheet provides `save <file>` output, place the generated Markdown link or image embed directly into the body.
 
 ## Stacked PRs

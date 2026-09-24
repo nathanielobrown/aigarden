@@ -1,8 +1,8 @@
 # Pull request fact sheet
 
-The authoring agent (Claude) fills in this fact sheet from the final `git diff <base>...HEAD` and test output, never from the initial plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer.
+The session that did the work (Claude) fills in this fact sheet from the final `git diff <base>...HEAD` and test output, never from the initial plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer.
 
-The composer agent reads this file to draft the pull request description.
+The composer agent reads this file and the diff to draft the pull request description. It summarizes what changed from the diff itself, so don't restate the diff here. Everything else it writes comes from this file.
 
 ## Rules
 
@@ -19,9 +19,8 @@ The composer agent reads this file to draft the pull request description.
 ### Stack
 - Stack goal: <1–2 sentences on overall stack goal if bottom PR; name bottom PR if upper layer; omit if not a stack>
 
-### Intent
-- What changed: <plain statement of changes from the diff>
-- Why: <author rationale and motivation>
+### Why
+- <author rationale and motivation; what changed comes from the diff>
 
 ### Feedback wanted
 - Review focus: <specific areas, questions, or architectural decisions requiring reviewer attention>
@@ -35,6 +34,7 @@ The composer agent reads this file to draft the pull request description.
 
 ### Visuals
 - <Mermaid block for a new or changed flow, before/after CLI output from the changed snapshots, a before/after table for performance, or `save <file>` output: one line describing what it shows>
+- <interactive explainer: its `save` link and one line on what the reader can do there>
 
 ### Verification
 - Checks executed: <commands run and output excerpts beyond standard green checks>
