@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/cog.rs
 expression: "fs::read_to_string(dir.path().join(\"SHORT.md\")).unwrap()"
 ---
 <!-- aigarden:cog first-sentences CONTEXT.md -->

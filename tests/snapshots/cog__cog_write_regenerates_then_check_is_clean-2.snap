@@ -1,14 +1,14 @@
 ---
-source: tests/cli.rs
+source: tests/cog.rs
 info:
   program: aigarden
   args:
     - cog
-    - "--write"
+    - "--check"
 ---
 success: true
 exit_code: 0
 ----- stdout -----
-updated docs/index.md
+✓ aigarden: checked 1 file, no findings
 
 ----- stderr -----

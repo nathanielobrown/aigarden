@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/cog.rs
 info:
   program: aigarden
   args:
@@ -9,6 +9,6 @@ info:
 success: true
 exit_code: 0
 ----- stdout -----
-updated SHORT.md
+updated doc.md
 
 ----- stderr -----
