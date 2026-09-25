@@ -8,7 +8,6 @@
 
 use crate::cog;
 use crate::diagnostic::Diagnostic;
-use crate::references::is_markdown;
 use crate::rules::{Explanation, NO_CONFIG, Rule, RuleContext};
 
 pub(crate) struct CogFresh;
@@ -33,9 +32,11 @@ failing generator becomes a finding here rather than aborting the whole check ru
     }
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        for file in ctx.files.iter().filter(|f| {
-            is_markdown(&f.rel_path) && ctx.resolver.is_enabled(self.name(), &f.rel_path)
-        }) {
+        for file in ctx
+            .files
+            .iter()
+            .filter(|f| cog::is_cog_file(&f.rel_path, ctx.resolver))
+        {
             let root = cog::repo_root(file.abs_path.parent().unwrap_or(&file.abs_path), ctx.root);
             for finding in cog::evaluate(&file.content, &file.abs_path, &root) {
                 diagnostics.push(cog::to_diagnostic(&file.rel_path, &file.content, &finding));

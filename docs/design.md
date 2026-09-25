@@ -136,6 +136,8 @@ Generators execute in one of two modes:
    - `index <glob>`: Lists root-relative matches formatted as `- [title](link) — gloss`, ordered by path. The title is derived from the first `#` heading or file stem; the gloss is pulled from frontmatter `description:` or the opening prose sentence.
 2. **Shell:** `sh "<command>"` executes a subshell command from the repository root (the nearest `.git` directory or scan root), capturing stdout. A non-zero exit code emits stderr and halts with an error.
 
+`aigarden cog` and the `cog-fresh` rule act on the same files: every markdown file where `cog-fresh` is enabled. Turning `cog-fresh` off for a glob with `[per-file-ignores]` removes those files from `cog --check` and `cog --write` too, so one config entry drives all three. If `cog-fresh` is enabled on no file (for example, it appears in `ignore`), `aigarden cog` exits 2 rather than reporting an empty pass as fresh.
+
 Execution subcommands require explicit mode flags:
 - `aigarden cog --check`: Audits freshness. Stale blocks return exit code 1 without writing. Generator failures trigger tool errors (exit 2).
 - `aigarden cog --write`: Updates target files on disk. Generator failures trigger tool errors (exit 2).

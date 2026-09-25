@@ -614,3 +614,45 @@ fn cog_fresh_surfaces_in_a_check_run() {
     );
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
 }
+
+#[test]
+fn cog_runs_only_where_cog_fresh_is_enabled() {
+    let dir = tempfile::tempdir().unwrap();
+    // A templates tree holds copyable placeholder cogs whose generators only work in
+    // the repo they get copied into, so the config turns `cog-fresh` off there. The
+    // cog subcommands must honor that exactly as `check` does: the template's
+    // failing generator never runs (no exit 2), and only the real doc is gated.
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[per-file-ignores]\n\"templates/**\" = [\"cog-fresh\"]\n",
+    );
+    let template = "<!-- aigarden:cog sh \"exit 3\" -->\nplaceholder\n<!-- aigarden:end -->\n";
+    write(dir.path(), "templates/AGENTS.md", template);
+    write(
+        dir.path(),
+        "doc.md",
+        "# Doc\n\n<!-- aigarden:cog sh \"echo hello\" -->\nstale\n<!-- aigarden:end -->\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
+    // --write regenerates the real doc and leaves the exempt template byte-identical.
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("templates/AGENTS.md")).unwrap(),
+        template
+    );
+}
+
+#[test]
+fn cog_with_cog_fresh_ignored_repo_wide_is_a_tool_error() {
+    let dir = tempfile::tempdir().unwrap();
+    // `ignore = ["cog-fresh"]` leaves the cog subcommands no file to act on. An
+    // empty pass would read as "all fresh", so it is a loud exit 2 instead.
+    write(dir.path(), "aigarden.toml", "ignore = [\"cog-fresh\"]\n");
+    write(
+        dir.path(),
+        "doc.md",
+        "<!-- aigarden:cog sh \"echo hello\" -->\nstale\n<!-- aigarden:end -->\n",
+    );
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
+}
