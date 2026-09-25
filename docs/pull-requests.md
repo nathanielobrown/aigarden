@@ -84,7 +84,7 @@ Pull requests do not run CI checks. The single workflow, `.github/workflows/rele
 
 ## Landing
 
-Every PR lands by squash merge, and only when directed. Use `gh pr merge --squash` (or the GitHub UI) for single branches, and `gh stack merge --squash` for stacks. Merging a mid-stack PR also merges all underlying layers, and GitHub retargets the next layer to `main`.
+Every PR lands by squash merge, and only when directed. Use `gh pr merge <pr-number> --squash` (or the GitHub UI) for single branches, and `gh stack merge <pr-number> --squash --yes` for stacks. Without `--yes`, `gh stack merge` opens an interactive wizard. Merging a mid-stack PR also merges all underlying layers, and GitHub retargets the next layer to `main`.
 
 Merging a PR that bumps `version` in `Cargo.toml` immediately triggers a release.
 

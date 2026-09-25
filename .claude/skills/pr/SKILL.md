@@ -9,7 +9,7 @@ Open a reviewable PR with the procedure below. The rules it relies on are in `do
 
 ## Procedure
 
-1. **Shape the branch**: Follow [Mechanics](../../../docs/pull-requests.md#mechanics), and [Stacked PRs](../../../docs/pull-requests.md#stacked-prs) for a stack. `mise run check` must pass locally.
+1. **Shape the branch**: Follow [Mechanics](../../../docs/pull-requests.md#mechanics), and [Stacked PRs](../../../docs/pull-requests.md#stacked-prs) for a stack.
 2. **Sync documentation**: Update `README.md`, `AGENTS.md`, `docs/design.md` and `docs/roadmap.md` wherever the change affects them, and commit the edits on the branch. There is no doc-writer subagent; do it yourself.
 3. **Write the fact sheet** following [fact_sheet.md](fact_sheet.md). Write it yourself; you did the work. This repo has no auditor agent. Never hand the job to an agent that knows the work only from a brief: it loses the rationale and the judgment calls.
 4. **Compose the description**: Run the Gemini composer headless through pi with [composer.md](composer.md):
@@ -27,7 +27,7 @@ Open a reviewable PR with the procedure below. The rules it relies on are in `do
    gh pr create --title "<emoji> <statement>" --body-file <body path>
    ```
 
-   For a stack, `gh stack submit` opens the PRs; then set each layer's title and body with `gh pr edit`.
+   For a stack, follow [Starting and submitting](../../../docs/pull-requests.md#stacked-prs) instead.
 8. **Recompose on substantial change**: Recompose when the scope, a design point or a stack layer changes, or a new known issue appears. Update the fact sheet first, then rerun step 4 and update the PR with `gh pr edit --body-file <body path>`. Small review fixes do not trigger it.
 
 @../../../docs/pull-requests.md

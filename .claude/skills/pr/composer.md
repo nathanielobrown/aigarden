@@ -86,7 +86,7 @@ When composing descriptions for stacked PRs:
 
 ## Write, then check
 
-1. Write your draft to the requested output path.
+1. Write your draft to the requested output path. Aim below the budget: first drafts in past rollouts ran up to 90% over it.
 2. Check every claim against the fact sheet. Remove anything it does not support, and any Background item written as this PR's work.
 3. Check that every path and identifier matches the fact sheet or `git diff --stat <base>...HEAD` exactly. `<base>` is the diff base your instruction names, or `origin/main` if it names none.
 4. Count the prose words with this command, which drops code blocks and `<details>` blocks:
@@ -95,4 +95,4 @@ When composing descriptions for stacked PRs:
    sed -e '/^[[:space:]]*```/,/^[[:space:]]*```/d' -e '/<details>/,/<\/details>/d' <output path> | wc -w
    ```
 
-   If the count is over the tier budget, cut by editing the file, then count again. Never regenerate the whole draft or paste it into a command. Drafts tend to overshoot: in the first rollouts, Standard bodies came in at 330–389 words against ~300.
+   If the count is over the tier budget, cut by editing the file, then count again. Never regenerate the whole draft or paste it into a command. Cut at most three rounds. If the body is still over budget, stop and end your reply with the final count and the budget.

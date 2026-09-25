@@ -47,7 +47,7 @@ The composer agent rewrites this file into the final PR description. It cuts and
 - Test edits: <any modifications to tests, snapshots, or thresholds>
 
 ### Links
-- Plan: <path or URL>
+- Plan: <path or URL of the committed plan; always link a deep-tier plan>
 - Issue: <path or URL>
 - Artifacts: <path or URL>
 
