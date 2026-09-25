@@ -16,7 +16,7 @@ The toolchain is pinned in `rust-toolchain.toml`. Run workflows using `mise`:
 
 ## Branches and Pull Requests
 
-Agents work on a topic branch in a worktree and finish with a PR; never commit to `main`. Before opening a PR, invoke the `pr` skill, which follows `docs/pull-requests.md`. Every PR lands by squash, and only when directed.
+Agents work on a topic branch in a worktree and finish with a PR; never commit to `main`. Before opening a PR, invoke the `pr` skill. `docs/pull-requests.md` holds the rules for branches, stacks, CI and landing.
 
 ## Engineering Rules
 

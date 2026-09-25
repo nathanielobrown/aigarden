@@ -4,19 +4,23 @@ Reviewer attention is the scarcest resource in this project. AI writes most of t
 
 aigarden is a public, single-user repository. Everything in a PR title, body, or comment is world-readable.
 
+This document holds the rules for branches, stacks, visuals, CI and landing. Each part of writing a PR description is defined in one file beside the `pr` skill:
+
+| What | Where |
+| --- | --- |
+| The steps to open a PR, and who writes the fact sheet | `.claude/skills/pr/SKILL.md` |
+| The fact sheet's format and how to write it | `.claude/skills/pr/fact_sheet.md` |
+| The description's layout, word budgets and style | `.claude/skills/pr/composer.md` |
+
 ## Mechanics
 
 Use `git` for branches and commits, `gh stack` for stacks, and `gh` for pull requests. Sessions are non-interactive; never pass `-i` flags.
 
-**The flow:**
-
 - Create one branch per task from `origin/main` in a worktree. Keep commits atomic, using an `<emoji> <statement>` subject (see `git log` for conventions).
 - Keep history linear. When `main` advances, rebase onto `origin/main`. Never merge `main` into your branch.
 - Run `mise run check` until it passes. Push once, only when the branch is ready for review.
-- Update affected docs (`README.md`, `AGENTS.md`, `docs/design.md`, `docs/roadmap.md`) on the branch so changes land together. The session that did the work handles this sync directly; there is no doc-writer subagent.
-- Open the PR with `gh pr create --title "<emoji> <statement>" --body-file <file>`. Omit issue or PR numbers from the title. PRs land by squash, so this title becomes the commit subject on `main` alongside an appended `(#N)`. Mark a PR as a draft only when it is not ready for review.
-- Address review comments with new commits. Fixup commits do not need autosquashing because the final squash absorbs them.
-- Land only when directed; see [Landing](#landing).
+- Format the PR title as a commit subject: `<emoji> <statement>`. Omit issue or PR numbers from the title. PRs land by squash, so this title becomes the commit subject on `main` alongside an appended `(#N)`. Mark a PR as a draft only when it is not ready for review.
+- Address review comments with new commits in the layer that owns the change. Fixup commits do not need autosquashing because the final squash absorbs them.
 
 **Direct commits to `main`:** Most of this repo's history, including features and release bumps, went straight to `main` without a PR. From now on, only trivial edits (like a typo or config fix) may go straight to `main`. Every substantial change requires a branch and a PR, and agents always open a PR. Pushing a modified `version` in `Cargo.toml` to `main` publishes a release (see [CI and checks](#ci-and-checks)).
 
@@ -28,8 +32,9 @@ Stacks are rare. When needed, use GitHub native stacks via the `gh stack` extens
 - **One concern per PR:** If you cannot state the change in one sentence, split it. Each layer must build, pass `mise run check`, and include its own tests.
 - **Plan layers upfront:** Design layers before writing code so refactors do not break intermediate gates.
 - **Size:** Target 100–400 lines of changed code per PR; split above 500. Tests, snapshots, comments, and docs do not count toward this limit. Mechanical changes (such as renames) may exceed it if explained in the description.
-- **Descriptions:** Create one fact sheet and one body per PR. State the overall stack goal in the bottom PR (one or two sentences); upper PRs should reference the bottom PR instead. Do not write "part n of m"; GitHub renders the stack map.
-- **Review fixes:** Commit fixes to the layer owning the change, then run `gh stack rebase --upstack` and `gh stack push`. Never rebase or amend layers using plain git; gh-stack bug #193 duplicates commits into upper layers.
+- **Depth:** Keep stacks to 2–5 layers as soft guidance. More than five layers usually spans multiple stories; start a second stack instead.
+- **Descriptions:** Each layer gets its own fact sheet and description, written against the layer below.
+- **Review fixes:** After committing a fix in its layer, run `gh stack rebase --upstack` and `gh stack push`. Never rebase or amend layers using plain git; gh-stack bug #193 duplicates commits into upper layers.
 - **Agent commands:** Run non-interactive `gh stack` subcommands only (`view --json`, `submit --auto`, explicit branch names). Never run bare `modify`.
 - **Starting and submitting:** Fast-forward local `main` to `origin/main` before `gh stack init`, which records local `main` as the stack's base. `gh stack submit` opens each PR with a generated title and body, so afterwards set each layer's real title and composed body with `gh pr edit <n> --title "<emoji> <statement>" --body-file <file>`.
 
@@ -39,93 +44,39 @@ A completed PR meets three requirements:
 
 1. **Working and verified:** `mise run check` passes. The description highlights what remains unverified rather than listing passing gates.
 2. **Docs updated:** All relevant documentation changes are included in the PR.
-3. **Reviewer context:** A reviewer understands the change without reading the diff first and knows where human judgment is required. See [Writing PR descriptions](#writing-pr-descriptions).
+3. **Reviewer context:** A reviewer understands the change without reading the diff first and knows where human judgment is required.
 
-## Writing PR descriptions
-
-The diff shows *what* changed; the description explains *why* and highlights choices requiring human judgment. PR descriptions orient the reviewer rather than acting as permanent documentation. Keep lasting rationale in `docs/design.md`, code comments, and tests.
-
-### Authoring process
-
-1. **Write the fact sheet, a verbose draft of the PR:** The session that did the work (usually Claude) writes `handoffs/pr-facts-<topic>.md` in the primary checkout from `git diff <base>...HEAD` and test outputs, never from the task plan. `<base>` is `origin/main`, or the parent layer's branch for an upper stack layer. Follow `.claude/skills/pr/fact_sheet.md`. `handoffs/` is gitignored; do not commit it or reference its paths in the PR.
-   - The fact sheet is complete rather than polished: the composer cuts and rewrites it, and reads little else.
-   - **What changed** gives a one-sentence Headline for this PR's net diff, the main changes grouped by purpose, and Background: context a reader might mistake for this PR's work, such as an earlier layer.
-   - **Why** carries the motivation, in the author's words.
-   - Never hand the fact sheet to an agent that knows the work only from a brief. Relaying context drops design rationale and judgment calls. This repo has no auditor agent, so the working session always writes it.
-2. **Compose the body with Gemini:** Run Gemini headlessly via pi:
-
-   ```bash
-   timeout 1800 pi -p --model openrouter/google/gemini-3.8-flash --append-system-prompt .claude/skills/pr/composer.md "<instruction naming the fact sheet, diff base and output paths>" < /dev/null
-   ```
-
-   The composer writes `handoffs/pr-body-<topic>.md` following `.claude/skills/pr/composer.md`. Gemini produces clearer prose than Claude. It revises the fact sheet rather than researching the change: everything it writes comes from the fact sheet, and it looks at the repository only to quote a path or identifier exactly. Keep the `< /dev/null`: without it, `pi -p` waits on input forever.
-3. **Verify facts:** The session opening the PR checks the body for factual accuracy (not style) and cuts any claim the fact sheet does not support. It manually reviews any Mermaid syntax (see [Diagrams](#diagrams)) and opens the PR using `gh pr create --body-file <file>`.
-4. **Recompose on substantial changes:** Regenerate the body if the scope changes, design decisions shift, new defects appear, or the stack structure changes. Update the fact sheet first, then rerun the composer. Small review fixes do not require recomposition. Apply updates via `gh pr edit --body-file <file>`.
-
-### Body layout and word budgets
-
-`.claude/skills/pr/composer.md` governs layout, section rules, and word budgets:
-
-```text
-<what changed and why: 2–3 sentences, no heading>
-
-## Needs your judgment
-Opens with the kind of feedback wanted. Then known issues, open decisions and review
-questions, each with its file, ordered by risk.
-
-## How it works
-One visual (diagram, before/after output, or save link) plus the design points the diff
-doesn't make obvious. Plan deviations go here, and only if there are any.
-
-## Verification
-Only evidence beyond the standard green checks: manual runs, before/after output, what
-went unverified, and any edit to tests, snapshots or thresholds.
-
-<footer: links to plan, issue, artifacts>
-```
-
-- **Light PRs** contain only the opening paragraph. Omit empty sections entirely.
-- **Word budgets for prose:** ~75 words for Light, ~300 for Standard, and ~500 for Deep. Code blocks, diagrams, and `<details>` tags do not count toward budgets.
-- **Rationale:** Stating desired feedback correlates strongly with merge rates (odds ratio 1.72, arXiv 2602.14611). Concise, structured bodies speed up reviews.
-
-### Pitfalls to avoid
-
-- Walking through files line by line to explain syntax instead of intent.
-- Drowning key judgment calls inside mechanical diff summaries.
-- Summarizing the initial plan rather than what landed in the diff.
-- Leaving placeholder text in empty sections.
-- Concealing known issues or choices in the diff instead of listing them under "Needs your judgment".
-- Pasting full gate output or writing "ran tests". Note exceptions instead.
-- Using relative Markdown links, which break on github.com. Use full URLs or backticked paths.
+The diff shows *what* changed; the description explains *why* and highlights choices requiring human judgment. It orients today's reviewer rather than acting as permanent documentation: keep lasting rationale in `docs/design.md`, code comments, and tests. Claude records the facts in a fact sheet and Gemini writes the prose, because Gemini's prose is easier to read.
 
 ## Visuals
 
-Visuals communicate changes faster than diffs.
+Visuals communicate changes faster than diffs. The fact sheet lists each one, and the composer places it.
 
 - **New or altered flows** (such as the rule engine, `cog`, `mv`, or config loading) require a Mermaid diagram.
 - **CLI output changes** require before/after excerpts in a code block. Quote relevant lines from the changed `insta` snapshots rather than dumping the full file.
 - **Performance changes** require a before/after comparison table.
-- **Interactive explainers:** Build an interactive HTML explainer when text and a single diagram cannot convey the change, for example stepping through a rule's findings on real files or filtering a before/after table of recorded output. Build it as one self-contained HTML file (or a directory uploaded with `save <dir> --entry index.html`) from recorded or redacted data only, since anyone with the link can open it. Open it in a browser to confirm it renders without console errors. Save the source in `handoffs/` next to the fact sheet, upload it with `save`, and add the link to the fact sheet's Visuals with one line on what the reader can do there. The description must still stand on its own without it.
 - **Hosting:** Run `save <file>` to upload an asset and print a Markdown snippet (inline image for graphics, a link otherwise).
+
+### Interactive explainers
+
+Build an interactive HTML explainer when text and a single diagram cannot convey the change. Good candidates:
+
+- Stepping through a rule's findings on real files.
+- Filtering a before/after table of recorded output.
+
+Build rules:
+
+- **Self-contained:** One HTML file with inline CSS and JavaScript (`save` warns on relative paths in a single file), or a directory uploaded with `save <dir> --entry index.html`.
+- **Recorded or redacted data:** Never live session data, since anyone with the link can open it.
+- **Checked in a browser:** It renders without console errors.
+- **Kept as a handoff:** Save the source in `handoffs/` next to the fact sheet so a recompose can update and re-upload it.
+- **Linked, not relied on:** Upload it with `save` and add the link to the fact sheet's Visuals with one line on what the reader can do there. The PR description must stand on its own without it.
 
 ### Diagrams
 
-Keep diagrams focused on a single question and split any graph exceeding 20 nodes. Use `flowchart` for pipelines, `sequenceDiagram` for call order, `stateDiagram-v2` for lifecycles, and before/after pairs for refactors.
+Draw flows, orderings and state transitions, not the diff or the file tree. Keep diagrams focused on a single question and split any graph exceeding 20 nodes. Use `flowchart` for pipelines, `sequenceDiagram` for call order, `stateDiagram-v2` for lifecycles, and before/after pairs for refactors.
 
-Because the repository lacks a `diagram-check` task, validate Mermaid syntax by hand before submitting: check for `snake_case` node IDs, `<br>` for line breaks, and quotes around labels containing punctuation. For lasting architecture, update the flowchart in `docs/design.md`; PR diagrams go stale after merge.
-
-## Submission checklist
-
-- [ ] `mise run check` passes locally on the final commit
-- [ ] Git history is linear on `origin/main` with atomic commits
-- [ ] Stacks use native `gh stack`, planned layers, and 100–400 code lines per PR
-- [ ] Docs are updated in the PR
-- [ ] Fact sheet generated from diff and test runs (`handoffs/pr-facts-<topic>.md`) by the session that did the work
-- [ ] Body composed by Gemini Flash via `pi` using `.claude/skills/pr/composer.md`
-- [ ] Body checked against the fact sheet for factual errors, matches tier word budget, and omits empty sections
-- [ ] Visuals included where required, and an interactive explainer linked if the change is hard to picture; Mermaid validated manually
-- [ ] Public repo safety: no handoff paths, local file paths, or private URLs in the body
-- [ ] Created via `gh pr create --body-file <file>`
+For lasting architecture, update the flowchart in `docs/design.md`; PR diagrams go stale after merge.
 
 ## CI and checks
 
