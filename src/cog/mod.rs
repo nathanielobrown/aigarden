@@ -21,9 +21,10 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use crate::cli::OutputFormat;
+use crate::config::Resolver;
 use crate::diagnostic::{Diagnostic, Span};
 use crate::output;
 use crate::references::is_markdown;
@@ -70,18 +71,43 @@ pub(crate) enum FindingKind {
     Failed,
 }
 
-/// `aigarden cog --check`: gate every markdown file's cog blocks. A failing
+/// Whether the cog engine owns `path`: a markdown file where `cog-fresh` is
+/// enabled. The one selection shared by `aigarden cog` and the `cog-fresh` rule,
+/// so `ignore` / `[per-file-ignores]` drive both identically.
+pub(crate) fn is_cog_file(path: &str, resolver: &Resolver<'_>) -> bool {
+    is_markdown(path) && resolver.is_enabled("cog-fresh", path)
+}
+
+/// The walked files `aigarden cog` acts on. Empty is a tool error: a pass over
+/// nothing would read as "all fresh" when `cog-fresh` is switched off everywhere.
+fn select<'f>(files: &'f [SourceFile], resolver: &Resolver<'_>) -> Result<Vec<&'f SourceFile>> {
+    let selected: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| is_cog_file(&f.rel_path, resolver))
+        .collect();
+    if selected.is_empty() {
+        bail!(
+            "no files for `aigarden cog`: `cog-fresh` is enabled on no markdown file \
+             (check `ignore` and `[per-file-ignores]`)"
+        );
+    }
+    Ok(selected)
+}
+
+/// `aigarden cog --check`: gate the cog blocks of every [`is_cog_file`]. A failing
 /// generator is a tool error (exit 2, loud on stderr); a stale block is a
 /// `cog-fresh` diagnostic (exit 1); a fresh repo is quiet (exit 0).
 pub(crate) fn check_repo(
     format: OutputFormat,
     files: &[SourceFile],
+    resolver: &Resolver<'_>,
     cwd: &Path,
     out: &mut impl Write,
 ) -> Result<ExitCode> {
     let mut diagnostics = Vec::new();
     let mut failures = Vec::new();
-    for file in files.iter().filter(|f| is_markdown(&f.rel_path)) {
+    let selected = select(files, resolver)?;
+    for file in &selected {
         let root = repo_root(file.abs_path.parent().unwrap_or(&file.abs_path), cwd);
         for finding in evaluate(&file.content, &file.abs_path, &root) {
             match finding.kind {
@@ -98,7 +124,8 @@ pub(crate) fn check_repo(
         bail!(failures.join("\n"));
     }
     let sources = output::sources_from(files);
-    output::render(format, &diagnostics, files.len(), &sources, out)?;
+    // The summary counts the files cog actually gated, not the whole walk.
+    output::render(format, &diagnostics, selected.len(), &sources, out)?;
     Ok(if diagnostics.is_empty() {
         ExitCode::SUCCESS
     } else {
@@ -106,18 +133,21 @@ pub(crate) fn check_repo(
     })
 }
 
-/// `aigarden cog --write`: regenerate every markdown file's cog blocks in place,
-/// reporting which files changed. A failing generator aborts (exit 2) — a write
-/// must be correct or not happen.
+/// `aigarden cog --write`: regenerate the cog blocks of every [`is_cog_file`] in
+/// place, reporting which files changed. A failing generator aborts (exit 2) — a
+/// write must be correct or not happen.
 pub(crate) fn write_repo(
     files: &[SourceFile],
+    resolver: &Resolver<'_>,
     cwd: &Path,
     out: &mut impl Write,
 ) -> Result<ExitCode> {
     let mut changed = 0;
-    for file in files.iter().filter(|f| is_markdown(&f.rel_path)) {
+    for file in select(files, resolver)? {
         let root = repo_root(file.abs_path.parent().unwrap_or(&file.abs_path), cwd);
-        if let Some(new_content) = rewrite(&file.content, &file.abs_path, &root)? {
+        let rewritten =
+            rewrite(&file.content, &file.abs_path, &root).with_context(|| file.rel_path.clone())?;
+        if let Some(new_content) = rewritten {
             std::fs::write(&file.abs_path, &new_content)?;
             writeln!(out, "updated {}", file.rel_path)?;
             changed += 1;

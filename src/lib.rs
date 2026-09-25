@@ -73,13 +73,15 @@ fn run_cog(cli: &Cli, write: bool, check: bool, out: &mut impl Write) -> Result<
         &loaded.config.effective_excludes(),
         &cwd,
     )?;
+    // The same resolver `check` uses, so `cog-fresh` enablement selects the files.
+    let resolver = Resolver::new(&loaded.config)?;
     // `check`/`write` are a required, mutually-exclusive pair (enforced by clap).
     if write {
-        cog::write_repo(&files, &cwd, out)
+        cog::write_repo(&files, &resolver, &cwd, out)
     } else {
         debug_assert!(check);
         let _ = check;
-        cog::check_repo(cli.output_format, &files, &cwd, out)
+        cog::check_repo(cli.output_format, &files, &resolver, &cwd, out)
     }
 }
 
