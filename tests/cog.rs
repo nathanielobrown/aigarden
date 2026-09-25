@@ -172,3 +172,61 @@ fn cog_with_cog_fresh_ignored_repo_wide_is_a_tool_error() {
     );
     assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
 }
+
+/// A Codex agent definition shaped like mycelia's `.codex/agents/*.toml`: the
+/// agent's markdown instructions live in a TOML multiline string, with a shared
+/// snippet spliced in by a cog block. The closing `"""` sits on its own line
+/// because each marker must own its line.
+const CODEX_AGENT: &str = "name = \"auditor\"\n\
+developer_instructions = \"\"\"\n\
+You are the auditor.\n\
+\n\
+<!-- aigarden:cog sh \"cat snippets/dispatch.md\" -->\n\
+stale dispatch text\n\
+<!-- aigarden:end -->\n\
+\"\"\"\n";
+
+#[test]
+fn cog_extend_include_gates_configured_non_markdown_files() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[cog-fresh]\nextend-include = [\".codex/agents/*.toml\"]\n",
+    );
+    write(
+        dir.path(),
+        "snippets/dispatch.md",
+        "## Dispatch\n\nWork alone.\n",
+    );
+    write(dir.path(), ".codex/agents/auditor.toml", CODEX_AGENT);
+    // Not listed in extend-include: its (equally stale) block is never touched,
+    // so only markdown plus the configured globs are cog files.
+    write(dir.path(), "other.toml", CODEX_AGENT);
+    // `check` sees the stale TOML block through the cog-fresh rule...
+    assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+    // ...and `cog --write` splices the snippet into the TOML string in place.
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--write"]));
+    insta::assert_snapshot!(
+        "cog_extend_include_toml_contents",
+        fs::read_to_string(dir.path().join(".codex/agents/auditor.toml")).unwrap()
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("other.toml")).unwrap(),
+        CODEX_AGENT
+    );
+}
+
+#[test]
+fn cog_extend_include_glob_matching_no_file_is_a_tool_error() {
+    let dir = tempfile::tempdir().unwrap();
+    // A typo'd glob would silently gate nothing, so `aigarden cog` rejects it.
+    write(
+        dir.path(),
+        "aigarden.toml",
+        "[cog-fresh]\nextend-include = [\".codex/agent/*.toml\"]\n",
+    );
+    write(dir.path(), ".codex/agents/auditor.toml", CODEX_AGENT);
+    write(dir.path(), "doc.md", "# Doc\n");
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["cog", "--check"]));
+}

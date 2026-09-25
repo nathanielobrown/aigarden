@@ -1,0 +1,14 @@
+---
+source: tests/cog.rs
+expression: "fs::read_to_string(dir.path().join(\".codex/agents/auditor.toml\")).unwrap()"
+---
+name = "auditor"
+developer_instructions = """
+You are the auditor.
+
+<!-- aigarden:cog sh "cat snippets/dispatch.md" -->
+## Dispatch
+
+Work alone.
+<!-- aigarden:end -->
+"""

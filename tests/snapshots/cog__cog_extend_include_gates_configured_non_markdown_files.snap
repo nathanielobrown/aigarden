@@ -1,0 +1,18 @@
+---
+source: tests/cog.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[cog-fresh]: cog block `sh` is out of date — run `aigarden cog --write`
+ --> .codex/agents/auditor.toml:5:1
+  |
+5 | <!-- aigarden:cog sh "cat snippets/dispatch.md" -->
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+aigarden: 1 finding
+
+----- stderr -----

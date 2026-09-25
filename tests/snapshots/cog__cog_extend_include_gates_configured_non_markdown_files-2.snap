@@ -1,0 +1,14 @@
+---
+source: tests/cog.rs
+info:
+  program: aigarden
+  args:
+    - cog
+    - "--write"
+---
+success: true
+exit_code: 0
+----- stdout -----
+updated .codex/agents/auditor.toml
+
+----- stderr -----

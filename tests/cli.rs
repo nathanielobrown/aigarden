@@ -274,6 +274,12 @@ fn explain_bare_path_documents_external() {
 }
 
 #[test]
+fn explain_cog_fresh_documents_extend_include() {
+    let dir = tempfile::tempdir().unwrap();
+    assert_cmd_snapshot!(aigarden(dir.path()).args(["explain", "cog-fresh"]));
+}
+
+#[test]
 fn code_doc_ref_skips_a_gitignored_candidate() {
     let dir = tempfile::tempdir().unwrap();
     // Same environment-artifact rule for a doc path cited in source: a reference to a

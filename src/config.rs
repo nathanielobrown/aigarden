@@ -56,6 +56,9 @@ pub struct Config {
     /// `bare-path`: backticked paths that legitimately live outside the repo.
     #[serde(default)]
     pub bare_path: BarePathConfig,
+    /// `cog-fresh`: which non-markdown files also carry cog blocks.
+    #[serde(default)]
+    pub cog_fresh: CogFreshConfig,
     /// `status-header`: the terminal-status "frozen docs" contract and exemption.
     /// The config type lives with its rule ([`crate::rules::status_header`]).
     #[serde(default)]
@@ -84,6 +87,17 @@ pub struct BarePathConfig {
     /// its absence is not a finding. A match suppresses the path everywhere.
     #[serde(default)]
     pub external: Vec<String>,
+}
+
+/// `cog-fresh`: cog blocks live in markdown by default; this opts other files in.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct CogFreshConfig {
+    /// Globs of non-markdown files (e.g. `.codex/agents/*.toml`) whose cog blocks
+    /// `aigarden cog` and the `cog-fresh` rule also regenerate and check. The
+    /// marker grammar is unchanged: each marker must sit alone on its line.
+    #[serde(default)]
+    pub extend_include: Vec<String>,
 }
 
 /// `markdown-style`: a small, curated slice of rumdl's style linting surfaced
@@ -284,6 +298,8 @@ pub(crate) struct Resolver<'a> {
     ignore: HashSet<&'a str>,
     /// One compiled matcher per `[per-file-ignores]` entry, paired with its rules.
     per_file: Vec<(GlobSet, &'a [String])>,
+    /// `[cog-fresh] extend-include`, one pattern per index in config order.
+    cog_extend_include: GlobSet,
 }
 
 impl<'a> Resolver<'a> {
@@ -298,10 +314,13 @@ impl<'a> Resolver<'a> {
                 Ok((set, rules.as_slice()))
             })
             .collect::<Result<Vec<_>>>()?;
+        let cog_extend_include = build_glob_set(&config.cog_fresh.extend_include)
+            .context("compiling `cog-fresh.extend-include` globs")?;
         Ok(Self {
             config,
             ignore,
             per_file,
+            cog_extend_include,
         })
     }
 
@@ -321,6 +340,15 @@ impl<'a> Resolver<'a> {
     /// resolution; per-path scoping is enablement only, via [`Self::is_enabled`]).
     pub(crate) fn file_length_budgets(&self) -> Vec<Budget> {
         self.config.file_length.effective_budgets()
+    }
+
+    /// `[cog-fresh] extend-include` compiled; match indices follow config order.
+    pub(crate) fn cog_extend_include(&self) -> &GlobSet {
+        &self.cog_extend_include
+    }
+
+    pub(crate) fn cog_fresh(&self) -> &'a CogFreshConfig {
+        &self.config.cog_fresh
     }
 
     pub(crate) fn markdown_style(&self) -> &'a MarkdownStyleConfig {
@@ -404,6 +432,10 @@ impl Config {
         for glob in &self.status_header.files {
             Glob::new(glob)
                 .with_context(|| format!("invalid `status-header` files glob `{glob}`"))?;
+        }
+        for glob in &self.cog_fresh.extend_include {
+            Glob::new(glob)
+                .with_context(|| format!("invalid `cog-fresh` extend-include glob `{glob}`"))?;
         }
         for glob in &self.bare_path.external {
             Glob::new(glob)
@@ -623,6 +655,19 @@ mod tests {
         // The user `**/*.md` shadows the built-in `**/*.md` (8000) because every
         // extend entry is checked before the base — first match wins.
         assert_eq!(budgets[1].max, 100);
+    }
+
+    #[test]
+    fn cog_fresh_extend_include_rejects_a_bad_glob_and_an_unknown_key() {
+        // Both fail at load: a malformed glob would never match, and a typo'd key
+        // (`include` for `extend-include`) would silently opt nothing in.
+        let bad_glob: Config =
+            toml::from_str("[cog-fresh]\nextend-include = [\"a/{b\"]\n").unwrap();
+        let err = bad_glob.validate().unwrap_err();
+        assert!(format!("{err:#}").contains("extend-include"), "{err:#}");
+
+        let err = toml::from_str::<Config>("[cog-fresh]\ninclude = [\"*.toml\"]\n").unwrap_err();
+        assert!(err.to_string().contains("unknown field"), "{err}");
     }
 
     #[test]

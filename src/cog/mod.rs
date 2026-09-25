@@ -71,23 +71,38 @@ pub(crate) enum FindingKind {
     Failed,
 }
 
-/// Whether the cog engine owns `path`: a markdown file where `cog-fresh` is
-/// enabled. The one selection shared by `aigarden cog` and the `cog-fresh` rule,
-/// so `ignore` / `[per-file-ignores]` drive both identically.
+/// Whether the cog engine owns `path`: a markdown file or a `[cog-fresh]
+/// extend-include` match, where `cog-fresh` is enabled. The one selection shared by
+/// `aigarden cog` and the `cog-fresh` rule, so one config drives both.
 pub(crate) fn is_cog_file(path: &str, resolver: &Resolver<'_>) -> bool {
-    is_markdown(path) && resolver.is_enabled("cog-fresh", path)
+    (is_markdown(path) || resolver.cog_extend_include().is_match(path))
+        && resolver.is_enabled("cog-fresh", path)
 }
 
-/// The walked files `aigarden cog` acts on. Empty is a tool error: a pass over
-/// nothing would read as "all fresh" when `cog-fresh` is switched off everywhere.
+/// The walked files `aigarden cog` acts on. An empty selection, or an
+/// `extend-include` glob matching no walked file, is a tool error: either would
+/// otherwise pass as "all fresh" while gating nothing.
 fn select<'f>(files: &'f [SourceFile], resolver: &Resolver<'_>) -> Result<Vec<&'f SourceFile>> {
+    let extend_include = &resolver.cog_fresh().extend_include;
+    let mut glob_matched = vec![false; extend_include.len()];
+    for file in files {
+        for index in resolver.cog_extend_include().matches(&file.rel_path) {
+            glob_matched[index] = true;
+        }
+    }
+    if let Some(index) = glob_matched.iter().position(|matched| !matched) {
+        bail!(
+            "`cog-fresh.extend-include` glob `{}` matches no file",
+            extend_include[index]
+        );
+    }
     let selected: Vec<&SourceFile> = files
         .iter()
         .filter(|f| is_cog_file(&f.rel_path, resolver))
         .collect();
     if selected.is_empty() {
         bail!(
-            "no files for `aigarden cog`: `cog-fresh` is enabled on no markdown file \
+            "no files for `aigarden cog`: `cog-fresh` is enabled on no cog file \\
              (check `ignore` and `[per-file-ignores]`)"
         );
     }
