@@ -1,0 +1,29 @@
+---
+source: tests/cog_style.rs
+expression: cog_first
+---
+# Doc
+
+Authored prose with trailing spaces
+
+<!-- aigarden:cog sh "cat gen/layout.txt" -->
+```text
+src/hyphae/   Analyze AI coding agents from their telemetry
+```
+<!-- aigarden:end -->
+
+<!-- aigarden:cog sh "cat gen/padded.txt" -->
+
+```text
+src/save/   Upload a file
+```
+
+<!-- aigarden:end -->
+
+<!-- aigarden:cog sh "cat gen/prose.txt" -->
+The first generated paragraph runs well past eighty columns so that a wrapping reflow would want to touch it.
+
+The second generated paragraph also runs long, and it sits directly above the end marker line.
+<!-- aigarden:end -->
+
+Authored closing line.

@@ -1,0 +1,18 @@
+---
+source: tests/cog_style.rs
+info:
+  program: aigarden
+  args:
+    - check
+---
+success: false
+exit_code: 1
+----- stdout -----
+error[markdown-style]: [MD031] No blank line before fenced code block
+  --> doc.md:10:1
+   |
+10 | ```
+   | ^^^
+aigarden: 1 finding
+
+----- stderr -----

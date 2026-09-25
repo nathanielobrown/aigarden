@@ -1,0 +1,14 @@
+---
+source: tests/cog_style.rs
+info:
+  program: aigarden
+  args:
+    - check
+    - "--fix"
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+aigarden: fixing doc.md: cannot tell generated text from authored text: unterminated cog block (missing `<!-- aigarden:end -->`)

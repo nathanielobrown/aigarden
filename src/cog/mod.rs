@@ -37,9 +37,21 @@ pub(crate) struct CogBlock {
     generator: String,
     args: String,
     /// Byte span of the open marker line, without its trailing newline.
-    open_marker_span: Range<usize>,
-    /// Byte span of the body between the markers (may be empty).
-    body_span: Range<usize>,
+    pub(crate) open_marker_span: Range<usize>,
+    /// Byte span of the body between the markers (may be empty). It ends where
+    /// the end marker line starts.
+    pub(crate) body_span: Range<usize>,
+}
+
+impl CogBlock {
+    /// The marker's directive as the author wrote it, e.g. `sh "make docs"`.
+    pub(crate) fn directive(&self) -> String {
+        if self.args.is_empty() {
+            self.generator.clone()
+        } else {
+            format!("{} {}", self.generator, self.args)
+        }
+    }
 }
 
 /// One freshness finding: a stale block, or a generator that failed to run.
@@ -218,7 +230,7 @@ fn generate(block: &CogBlock, file_abs: &Path, repo_root: &Path) -> Result<Strin
 
 /// Parse every cog block, fence-aware. Fails loudly on a nested open marker or an
 /// unterminated block — a malformed region must never silently pass as fresh.
-fn find_blocks(content: &str) -> Result<Vec<CogBlock>> {
+pub(crate) fn find_blocks(content: &str) -> Result<Vec<CogBlock>> {
     let mut blocks = Vec::new();
     let mut in_fence = false;
     let mut open: Option<(String, String, Range<usize>, usize)> = None;
