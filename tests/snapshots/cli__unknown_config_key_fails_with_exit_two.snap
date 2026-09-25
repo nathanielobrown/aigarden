@@ -14,4 +14,4 @@ aigarden: parsing config file [CONFIG]: TOML parse error at line 1, column 2
   |
 1 | [nonsense]
   |  ^^^^^^^^
-unknown field `nonsense`, expected one of `exclude`, `extend-exclude`, `ignore`, `per-file-ignores`, `file-length`, `markdown-style`, `descriptive-anchor`, `bare-path`, `status-header`
+unknown field `nonsense`, expected one of `exclude`, `extend-exclude`, `ignore`, `per-file-ignores`, `file-length`, `markdown-style`, `descriptive-anchor`, `bare-path`, `cog-fresh`, `status-header`

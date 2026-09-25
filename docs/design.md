@@ -57,7 +57,7 @@ Rules use kebab-case names without numeric codes. All rules are enabled by defau
 - `markdown-style`: Curated, auto-fixable rules from `rumdl_lib` (whitespace, fence spacing, trailing newlines). The opt-in `reflow` setting manages paragraph structures without external `.rumdl.toml` files: `"wrap"` formats lines past 80 columns; `"never-wrap"` unrolls paragraphs into single physical lines while leaving code blocks and tables untouched. Running `aigarden check --fix` mutates files on disk and re-evaluates remaining errors. Cog markers and generated cog bodies follow the rules in [Cogs and markdown style](#cogs-and-markdown-style).
 
 ### Content Freshness
-- `cog-fresh`: Ensures dynamic cog blocks on disk match the current evaluation of their generators.
+- `cog-fresh`: Ensures dynamic cog blocks on disk match the current evaluation of their generators. Covers markdown files plus the non-markdown globs in `[cog-fresh] extend-include` (see [Cogs](#cogs)).
 
 ### Link Readability
 - `descriptive-anchor`: Flags links whose visible text consists entirely of a stable ID (e.g., `[ADR-0026]`). Target patterns are configured via regex in `[descriptive-anchor] patterns`. The rule is inert until patterns are declared. Parenthetical mentions like `(see [ADR-0026])` or augmented titles like `[ADR-0026 — gated publication]` are permitted.
@@ -136,7 +136,16 @@ Generators execute in one of two modes:
    - `index <glob>`: Lists root-relative matches formatted as `- [title](link) — gloss`, ordered by path. The title is derived from the first `#` heading or file stem; the gloss is pulled from frontmatter `description:` or the opening prose sentence.
 2. **Shell:** `sh "<command>"` executes a subshell command from the repository root (the nearest `.git` directory or scan root), capturing stdout. A non-zero exit code emits stderr and halts with an error.
 
-`aigarden cog` and the `cog-fresh` rule act on the same files: every markdown file where `cog-fresh` is enabled. Turning `cog-fresh` off for a glob with `[per-file-ignores]` removes those files from `cog --check` and `cog --write` too, so one config entry drives all three. If `cog-fresh` is enabled on no file (for example, it appears in `ignore`), `aigarden cog` exits 2 rather than reporting an empty pass as fresh.
+`aigarden cog` and the `cog-fresh` rule act on the same files: every markdown file, plus every `[cog-fresh] extend-include` match, where `cog-fresh` is enabled. Turning `cog-fresh` off for a glob with `[per-file-ignores]` removes those files from `cog --check` and `cog --write` too, so one config entry drives all three. If `cog-fresh` is enabled on no file (for example, it appears in `ignore`), `aigarden cog` exits 2 rather than reporting an empty pass as fresh.
+
+Cog blocks can also live in non-markdown files that embed markdown, such as agent definitions whose prompt is a TOML multiline string. List them explicitly:
+
+```toml
+[cog-fresh]
+extend-include = [".codex/agents/*.toml"]
+```
+
+The marker grammar stays the same and line-based: each marker must sit alone on its line, with only surrounding whitespace. A closing delimiter such as TOML's `"""` therefore goes on the line after `<!-- aigarden:end -->`. The generated body is spliced in verbatim, so it must be valid in the host format (for example, no `\` escapes or `"""` inside a TOML basic string). `aigarden cog` exits 2 if an `extend-include` glob matches no walked file. `aigarden check` does not apply that test, since it may scan only some paths.
 
 Execution subcommands require explicit mode flags:
 - `aigarden cog --check`: Audits freshness. Stale blocks return exit code 1 without writing. Generator failures trigger tool errors (exit 2).

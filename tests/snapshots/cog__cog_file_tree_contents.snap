@@ -1,5 +1,5 @@
 ---
-source: tests/cli.rs
+source: tests/cog.rs
 expression: "fs::read_to_string(dir.path().join(\"doc.md\")).unwrap()"
 ---
 <!-- aigarden:cog file-tree src -->

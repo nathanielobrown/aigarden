@@ -8,7 +8,7 @@
 
 use crate::cog;
 use crate::diagnostic::Diagnostic;
-use crate::rules::{Explanation, NO_CONFIG, Rule, RuleContext};
+use crate::rules::{ConfigKey, Explanation, Rule, RuleContext};
 
 pub(crate) struct CogFresh;
 
@@ -23,8 +23,14 @@ impl Rule for CogFresh {
         Explanation {
             checks: "A generated cog block (`<!-- aigarden:cog … -->` … `<!-- aigarden:end -->`) \
 matches what its generator produces now. Regenerate stale blocks with `aigarden cog --write`. A \
-failing generator becomes a finding here rather than aborting the whole check run.",
-            config: NO_CONFIG,
+failing generator becomes a finding here rather than aborting the whole check run. Covers \
+markdown files plus any `extend-include` match; `aigarden cog` acts on the same files.",
+            config: &[ConfigKey {
+                key: "extend-include",
+                default: "[]",
+                purpose: "globs of non-markdown files (e.g. `.codex/agents/*.toml`) whose cog \
+blocks are also checked and written; `aigarden cog` exits 2 if one matches no file",
+            }],
             example: "cog block is stale — its generator now produces different output",
             fix: None,
             config_gated: false,

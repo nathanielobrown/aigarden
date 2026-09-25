@@ -1,0 +1,14 @@
+---
+source: tests/cog.rs
+info:
+  program: aigarden
+  args:
+    - cog
+    - "--check"
+---
+success: false
+exit_code: 2
+----- stdout -----
+
+----- stderr -----
+aigarden: `cog-fresh.extend-include` glob `.codex/agent/*.toml` matches no file
