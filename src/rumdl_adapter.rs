@@ -8,16 +8,26 @@
 //! every warning is converted here via [`char_pos_to_byte`]. rumdl lint failures
 //! are exceptional (malformed internal state), so we crash loud rather than
 //! degrade — a swallowed rumdl error would silently drop real findings.
+//!
+//! Style warnings are also placed against the file's cog blocks here
+//! ([`CogLayout`]), so the check and `--fix` agree on what the generator owns.
 
+use std::ops::Range;
+use std::path::Path;
+
+use anyhow::{Context, Result, anyhow};
+use rumdl_lib::LintContext;
 use rumdl_lib::config::MarkdownFlavor;
-use rumdl_lib::rule::{LintWarning, Rule as RumdlRule};
+use rumdl_lib::rule::{Fix, LintWarning, Rule as RumdlRule};
 use rumdl_lib::rules::md013_line_length::md013_config::ReflowMode;
 use rumdl_lib::rules::{
     MD009TrailingSpaces, MD010NoHardTabs, MD012NoMultipleBlanks, MD013Config, MD013LineLength,
     MD031BlanksAroundFences, MD047SingleTrailingNewline, MD051LinkFragments,
 };
 use rumdl_lib::types::LineLength;
+use rumdl_lib::utils::fix_utils::{apply_warning_fixes, filter_warnings_by_inline_config};
 
+use crate::cog;
 use crate::config::Reflow;
 use crate::references::is_markdown;
 use crate::walk::SourceFile;
@@ -129,6 +139,128 @@ pub(crate) fn run<'a>(
     findings
 }
 
+/// Apply `rules`' fixes to `content` in order, each on the previous rule's output
+/// (the order `rumdl --fix` uses), skipping any fix [`CogLayout`] does not hand
+/// to the author. Mirrors each rule's own `fix`, which is check-then-apply for
+/// every rule in [`style_rules`].
+pub(crate) fn fix(content: &str, path: &Path, rules: &[Box<dyn RumdlRule>]) -> Result<String> {
+    let mut content = content.to_string();
+    for rule in rules {
+        let ctx = LintContext::new(&content, MarkdownFlavor::Standard, Some(path.to_path_buf()));
+        if rule.should_skip(&ctx) {
+            continue;
+        }
+        // Re-parse each round: an earlier rule's fix shifts every byte after it.
+        let layout =
+            CogLayout::parse(&content).context("cannot tell generated text from authored text")?;
+        let warnings = rule
+            .check(&ctx)
+            .map_err(|e| anyhow!("checking with {}: {e}", rule.name()))?;
+        let authored: Vec<LintWarning> =
+            filter_warnings_by_inline_config(warnings, ctx.inline_config(), rule.name())
+                .into_iter()
+                .filter(|w| matches!(layout.owner(w), Some(Owner::Author)))
+                .collect();
+        content = apply_warning_fixes(&content, &authored)
+            .map_err(|e| anyhow!("fixing with {}: {e}", rule.name()))?;
+    }
+    Ok(content)
+}
+
+/// Style rules whose findings are "no blank line between this construct and its
+/// neighbor". A cog marker counts as that blank line; MD012 (blank-line runs) is
+/// deliberately absent, since a marker is a real line there.
+const BLANK_NEIGHBOR_RULES: &[&str] = &["MD031"];
+
+/// Who owns the text a style warning sits in, and so who must fix it.
+pub(crate) enum Owner {
+    /// Authored text: report the warning, and `--fix` may rewrite it.
+    Author,
+    /// A cog block's generated body, named by its directive: report the warning
+    /// against the generator, and never fix it in place.
+    Generator(String),
+}
+
+/// A file's cog blocks, laid out for placing style warnings. See the "Cogs and
+/// markdown style" section of `docs/design.md` for the two rules it enforces.
+pub(crate) struct CogLayout {
+    /// Byte offset of each line's start; index 0 is line 1.
+    line_starts: Vec<usize>,
+    blocks: Vec<cog::CogBlock>,
+}
+
+impl CogLayout {
+    /// Lay out `content`'s cog blocks. A malformed block set is an error: without
+    /// the block boundaries, no one can say which text the generator owns.
+    pub(crate) fn parse(content: &str) -> Result<Self> {
+        let line_starts = std::iter::once(0)
+            .chain(content.match_indices('\n').map(|(i, _)| i + 1))
+            .filter(|&start| start < content.len())
+            .collect();
+        Ok(Self {
+            line_starts,
+            blocks: cog::find_blocks(content)?,
+        })
+    }
+
+    /// Who owns `warning`'s text, or `None` when a cog marker already supplies
+    /// the blank line a blank-neighbor rule asks for.
+    pub(crate) fn owner(&self, warning: &LintWarning) -> Option<Owner> {
+        let edits = warning
+            .fix
+            .iter()
+            .flat_map(|fix| std::iter::once(fix).chain(&fix.additional_edits));
+        if warning
+            .rule_name
+            .as_deref()
+            .is_some_and(|id| BLANK_NEIGHBOR_RULES.contains(&id))
+            && edits.clone().any(|edit| self.inserts_beside_marker(edit))
+        {
+            return None;
+        }
+        let lines = warning.line..=warning.end_line.max(warning.line);
+        let owner = self.blocks.iter().find(|block| {
+            let body = &block.body_span;
+            let body_lines = self.line_of(body.start)..self.line_of(body.end);
+            body_lines.clone().any(|line| lines.contains(&line))
+                || edits.clone().any(|edit| touches(&edit.range, body))
+        });
+        Some(owner.map_or(Owner::Author, |block| Owner::Generator(block.directive())))
+    }
+
+    /// Whether `edit` inserts text at a line boundary with a marker on either side.
+    fn inserts_beside_marker(&self, edit: &Fix) -> bool {
+        let at = edit.range.start;
+        if !edit.range.is_empty() || self.line_starts.binary_search(&at).is_err() {
+            return false;
+        }
+        let below = self.line_of(at);
+        self.blocks.iter().any(|block| {
+            // The end marker line starts where the body ends.
+            let markers = [
+                self.line_of(block.open_marker_span.start),
+                self.line_of(block.body_span.end),
+            ];
+            markers.contains(&below) || markers.contains(&(below - 1))
+        })
+    }
+
+    /// The 1-based line number holding byte `offset`.
+    fn line_of(&self, offset: usize) -> usize {
+        self.line_starts.partition_point(|&start| start <= offset)
+    }
+}
+
+/// Whether an edit over `range` writes inside `body`. An insertion at either end
+/// of the body lands inside it, since the markers stay put around it.
+fn touches(range: &Range<usize>, body: &Range<usize>) -> bool {
+    if range.is_empty() {
+        body.contains(&range.start) || range.start == body.end
+    } else {
+        range.start < body.end && range.end > body.start
+    }
+}
+
 /// Convert a rumdl 1-based (`line`, `column`) position — column measured in
 /// characters — into a byte offset in `content`. Out-of-range columns clamp to
 /// the end of their line's text (excluding the newline).
@@ -149,6 +281,22 @@ pub(crate) fn char_pos_to_byte(content: &str, line: usize, column: usize) -> usi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fence_flush_against_cog_markers_still_renders_as_code() {
+        // The CommonMark fact behind treating a marker as a blank line: an HTML
+        // comment block ends on the line holding `-->`, so a fence right after it
+        // opens a code block, and prose right before it is not swallowed.
+        let doc = "Prose\n<!-- aigarden:cog sh \"x\" -->\n```text\ncode\n```\n<!-- aigarden:end -->\nAfter\n";
+        let mut html = String::new();
+        pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new(doc));
+        assert_eq!(
+            html,
+            "<p>Prose</p>\n<!-- aigarden:cog sh \"x\" -->\n\
+             <pre><code class=\"language-text\">code\n</code></pre>\n\
+             <!-- aigarden:end -->\n<p>After</p>\n"
+        );
+    }
 
     #[test]
     fn char_pos_maps_first_column_of_each_line() {

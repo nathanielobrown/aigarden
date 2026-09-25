@@ -54,7 +54,7 @@ Rules use kebab-case names without numeric codes. All rules are enabled by defau
 - `file-length`: Enforces file boundaries configured via `"glob" = { lines | tokens = N }`. Code paths budget line counts; guidance and prose documents budget token counts (~4 chars/token).
 
 ### Markdown Style
-- `markdown-style`: Curated, auto-fixable rules from `rumdl_lib` (whitespace, fence spacing, trailing newlines). The opt-in `reflow` setting manages paragraph structures without external `.rumdl.toml` files: `"wrap"` formats lines past 80 columns; `"never-wrap"` unrolls paragraphs into single physical lines while leaving code blocks and tables untouched. Running `aigarden check --fix` mutates files on disk and re-evaluates remaining errors.
+- `markdown-style`: Curated, auto-fixable rules from `rumdl_lib` (whitespace, fence spacing, trailing newlines). The opt-in `reflow` setting manages paragraph structures without external `.rumdl.toml` files: `"wrap"` formats lines past 80 columns; `"never-wrap"` unrolls paragraphs into single physical lines while leaving code blocks and tables untouched. Running `aigarden check --fix` mutates files on disk and re-evaluates remaining errors. Cog markers and generated cog bodies follow the rules in [Cogs and markdown style](#cogs-and-markdown-style).
 
 ### Content Freshness
 - `cog-fresh`: Ensures dynamic cog blocks on disk match the current evaluation of their generators.
@@ -140,6 +140,20 @@ Execution subcommands require explicit mode flags:
 - `aigarden cog --check`: Audits freshness. Stale blocks return exit code 1 without writing. Generator failures trigger tool errors (exit 2).
 - `aigarden cog --write`: Updates target files on disk. Generator failures trigger tool errors (exit 2).
 - `aigarden check`: Audits cog blocks via the `cog-fresh` rule. Generator failures surface as non-fatal lint findings (exit 1).
+
+### Cogs and markdown style
+
+A cog block's body belongs to its generator, and `markdown-style` respects that boundary. Running `aigarden cog --write` and `aigarden check --fix` in either order must leave both `aigarden check` and `aigarden cog --check` passing, and rerunning either command must produce no further changes. Two rules maintain this invariant across the curated style set:
+
+1. **A marker line counts as a blank line for blank-neighbor rules.** MD031 permits a code fence immediately adjacent to `<!-- aigarden:cog … -->` or `<!-- aigarden:end -->`, allowing a generator to start or end its output with a fence. In CommonMark, each marker is an HTML comment block ending on its own line, so the fence still renders normally. GitHub hides the comment, meaning extra vertical padding provides no visual benefit to readers. This exemption applies strictly to rules requiring empty space beside a construct: MD031 today, plus MD022, MD032, or MD058 if added later. MD012 is excluded because a marker counts as real content against consecutive blank limits.
+2. **`check --fix` never writes between the markers.** The linter still reports style findings inside a generated body, but `--fix` does not rewrite the text directly. Instead, the diagnostic directs the user to fix the block's generator. If cog blocks fail to parse, `--fix` refuses to process the file and exits with code 2, because it cannot safely separate generated text from authored text.
+
+Existing blank padding around generator output remains valid, allowing repositories to remove unnecessary blank lines gradually.
+
+Two alternatives were considered and rejected:
+
+- Skipping style rules inside cog blocks entirely would hide genuine defects in generated text.
+- Running style fixes on generator output during `cog --write` would couple cog to rumdl, mask generator bugs, and cause a block's content to depend on its surrounding context.
 
 ## File Moves
 
