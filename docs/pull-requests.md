@@ -80,7 +80,7 @@ For lasting architecture, update the flowchart in `docs/design.md`; PR diagrams 
 
 ## CI and checks
 
-Pull requests do not run CI checks. The single workflow, `.github/workflows/release.yml`, runs on pushes to `main` and publishes whenever `Cargo.toml` contains an unreleased `version`. Local validation via `mise run check` on the final commit is the sole gate. Because `gh pr checks` reports nothing, agents do not need to poll for status.
+Pull requests do not run CI checks. `.github/workflows/release.yml` runs on pushes to `main` and publishes whenever `Cargo.toml` contains an unreleased `version`. `.github/workflows/claude.yml` only answers `@claude` mentions, so its runs are not checks to wait on. Local validation via `mise run check` on the final commit is the sole gate, and agents do not need to poll for status.
 
 ## Landing
 
