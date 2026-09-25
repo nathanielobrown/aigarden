@@ -24,7 +24,10 @@
 //! simply leaves `link-target` out of `suppresses`.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::{fs, io};
 
+use globset::GlobSet;
 use serde::Deserialize;
 
 use crate::diagnostic::Diagnostic;
@@ -209,29 +212,57 @@ fn dir_of(rel_path: &str) -> &str {
 /// tracked item. Only [`StatusClass::Missing`] inherits — a doc with its own header
 /// keeps it, and a broken one stays a loud finding. One level, no chaining: the
 /// designated file must carry a real status to govern anything.
-fn inherit_within_directory(scanned: &mut [(&SourceFile, StatusClass)], name: &str) {
-    let governing: HashMap<&str, bool> = scanned
-        .iter()
-        .filter_map(|&(file, ref class)| {
-            let terminal = match class {
-                StatusClass::Terminal => true,
-                StatusClass::Live => false,
-                _ => return None,
-            };
-            (file.rel_path.rsplit('/').next() == Some(name))
-                .then(|| (dir_of(&file.rel_path), terminal))
-        })
-        .collect();
+///
+/// The designated file is read from disk, not looked up among the scanned docs:
+/// `aigarden check <paths>` (a pre-commit hook's staged files) may not include it,
+/// and a sibling's status must not depend on which paths were requested.
+fn inherit_within_directory(
+    scanned: &mut [(&SourceFile, StatusClass)],
+    name: &str,
+    matcher: &GlobSet,
+    cfg: &StatusHeaderConfig,
+) {
+    // Keyed by directory: `Some(terminal)` when the designated file governs it.
+    let mut governing: HashMap<String, Option<bool>> = HashMap::new();
     for (file, class) in scanned.iter_mut() {
-        if *class == StatusClass::Missing
-            && let Some(&terminal) = governing.get(dir_of(&file.rel_path))
-        {
+        if *class != StatusClass::Missing {
+            continue;
+        }
+        let dir = dir_of(&file.rel_path);
+        let terminal = *governing.entry(dir.to_string()).or_insert_with(|| {
+            let rel = if dir.is_empty() {
+                name.to_string()
+            } else {
+                format!("{dir}/{name}")
+            };
+            // Only a doc under the contract governs, as on a whole-repo scan.
+            if !matcher.is_match(&rel) || is_readme(&rel) {
+                return None;
+            }
+            match classify(&read_if_present(&file.abs_path.with_file_name(name))?, cfg) {
+                StatusClass::Terminal => Some(true),
+                StatusClass::Live => Some(false),
+                StatusClass::Missing | StatusClass::Unknown(_) => None,
+            }
+        });
+        if let Some(terminal) = terminal {
             *class = if terminal {
                 StatusClass::Terminal
             } else {
                 StatusClass::Live
             };
         }
+    }
+}
+
+/// `path`'s content (lossy UTF-8, as the walker reads it), or `None` when absent.
+/// Any other IO error panics: a present but unreadable file must not silently
+/// leave its directory ungoverned.
+fn read_if_present(path: &Path) -> Option<String> {
+    match fs::read(path) {
+        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) => panic!("reading {}: {err}", path.display()),
     }
 }
 
@@ -256,7 +287,7 @@ fn scanned<'a>(
         .map(|f| (f, classify(&f.content, cfg)))
         .collect();
     if let Some(name) = &cfg.inherits_from {
-        inherit_within_directory(&mut scanned, name);
+        inherit_within_directory(&mut scanned, name, &matcher, cfg);
     }
     scanned
 }

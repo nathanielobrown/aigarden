@@ -65,7 +65,7 @@ Rules use kebab-case names without numeric codes. All rules are enabled by defau
 ### Frozen History
 - `status-header`: Enforces a `**Status:** <value>` header on docs matching `[status-header] files`. A status with a leading keyword in `live` is audited normally. A status keyword in `terminal` marks the document as historical and suppresses all rules listed in `[status-header] suppresses`.
   - Only citation rules (`link-target`, `link-case`, `bare-path`, `import-target`, `anchor-resolves`, `descriptive-anchor`) are suppressible; listing structural rules triggers configuration errors.
-  - Setting `inherits-from = "plan.md"` allows peer files in the same directory lacking headers to inherit the status of the named file.
+  - Setting `inherits-from = "plan.md"` allows peer files in the same directory lacking headers to inherit the status of the named file. The named file is read from disk, so `aigarden check <paths>` (such as a pre-commit hook's staged files) gives a peer the same verdict as a whole-repo run.
   - The rule is inert until `files` is specified.
 
 ### Introspection Commands

@@ -167,6 +167,26 @@ fn a_sibling_inherits_its_directorys_status_and_freezes_with_it() {
         "# Notes\n\nNo plan beside it.\n",
     );
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+
+    // A pre-commit hook checks only the staged files, so every `plan.md` can fall
+    // outside the requested paths. The siblings must still read their status from
+    // it on disk: the same verdicts as the whole-repo run, not a missing header on
+    // `shipped/grill.md` and a live dead link where the directory is frozen.
+    let whole_repo = aigarden(dir.path()).arg("check").output().unwrap();
+    let siblings_only = aigarden(dir.path())
+        .args([
+            "check",
+            "plans/shipped/grill.md",
+            "plans/shipped/reopened.md",
+            "plans/building/grill.md",
+            "plans/loose/notes.md",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&siblings_only.stdout),
+        String::from_utf8_lossy(&whole_repo.stdout),
+    );
 }
 
 #[test]
