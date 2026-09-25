@@ -321,6 +321,19 @@ fn anchor_resolves_flags_missing_same_file_and_cross_file_fragments() {
         "See [x](guide.md#missing) and [y](#nope).\n\n# Top\n",
     );
     assert_cmd_snapshot!(aigarden(dir.path()).arg("check"));
+
+    // Checking only `doc.md` (a pre-commit hook's staged file) still reads the
+    // linked `guide.md` from disk, so the cross-file anchor is flagged exactly as
+    // on the whole-repo run rather than passing because `guide.md` went unscanned.
+    let whole_repo = aigarden(dir.path()).arg("check").output().unwrap();
+    let doc_only = aigarden(dir.path())
+        .args(["check", "doc.md"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&doc_only.stdout),
+        String::from_utf8_lossy(&whole_repo.stdout),
+    );
 }
 
 #[test]

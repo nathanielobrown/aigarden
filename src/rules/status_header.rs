@@ -24,8 +24,8 @@
 //! simply leaves `link-target` out of `suppresses`.
 
 use std::collections::{HashMap, HashSet};
+use std::io;
 use std::path::Path;
-use std::{fs, io};
 
 use globset::GlobSet;
 use serde::Deserialize;
@@ -33,7 +33,7 @@ use serde::Deserialize;
 use crate::diagnostic::Diagnostic;
 use crate::references::is_markdown;
 use crate::rules::{ConfigKey, Explanation, Rule, RuleContext};
-use crate::walk::{SourceFile, build_glob_set};
+use crate::walk::{SourceFile, build_glob_set, read_lossy};
 
 /// `status-header`: the "frozen docs" contract. A tracker doc (an issue/plan)
 /// carries its lifecycle state in a `**Status:** <value>` header, not its folder.
@@ -259,8 +259,8 @@ fn inherit_within_directory(
 /// Any other IO error panics: a present but unreadable file must not silently
 /// leave its directory ungoverned.
 fn read_if_present(path: &Path) -> Option<String> {
-    match fs::read(path) {
-        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+    match read_lossy(path) {
+        Ok(content) => Some(content),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
         Err(err) => panic!("reading {}: {err}", path.display()),
     }

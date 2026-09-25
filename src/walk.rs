@@ -53,15 +53,21 @@ pub(crate) fn walk(paths: &[PathBuf], exclude: &[String], cwd: &Path) -> Result<
         // Cross-file rules key a workspace index by this path and must agree with
         // how they resolve link targets — a relative key silently misses.
         let abs_path = cwd.join(walked);
-        let bytes =
-            std::fs::read(&abs_path).with_context(|| format!("reading {}", abs_path.display()))?;
+        let content =
+            read_lossy(&abs_path).with_context(|| format!("reading {}", abs_path.display()))?;
         files.push(SourceFile {
             rel_path,
             abs_path,
-            content: String::from_utf8_lossy(&bytes).into_owned(),
+            content,
         });
     }
     Ok(files)
+}
+
+/// `path`'s content decoded as the walker reads every file: lossy UTF-8, so a
+/// stray invalid byte becomes U+FFFD rather than an error.
+pub(crate) fn read_lossy(path: &Path) -> std::io::Result<String> {
+    Ok(String::from_utf8_lossy(&std::fs::read(path)?).into_owned())
 }
 
 /// Path relative to `cwd` when possible, forward-slashed for stable matching,
