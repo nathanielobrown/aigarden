@@ -44,7 +44,7 @@ Rules use kebab-case names without numeric codes. All rules are enabled by defau
 
 ### Reference Integrity
 - `link-target`: Relative markdown target must exist on disk; extensionless links resolve to `.md`. Implemented directly on the shared core for byte-span tracking rather than via `rumdl_lib` MD057.
-- `anchor-resolves`: Target `#fragment` (local or cross-file) must resolve to a valid heading using GitHub slug rules via `rumdl_lib` MD051.
+- `anchor-resolves`: Target `#fragment` (local or cross-file) must resolve to a valid heading using GitHub slug rules via `rumdl_lib` MD051. A linked file outside the paths given to `aigarden check <paths>` is read from disk, so its anchors are still checked.
 - `import-target`: Target `@path` imports inside always-loaded files (`CLAUDE.md`, `AGENTS.md`, `SKILL.md`) must exist on disk to prevent silent runtime failures.
 - `bare-path`: Backticked file paths with interior slashes and valid extensions must exist relative to the file or repository root. The walker skips git-ignored paths; paths matched by `[bare-path] external` globs (such as `~/.writer/config.toml`) are ignored globally.
 - `link-case`: Markdown target paths must match filesystem casing exactly, preventing cross-platform failures on case-sensitive CI environments.
@@ -65,7 +65,7 @@ Rules use kebab-case names without numeric codes. All rules are enabled by defau
 ### Frozen History
 - `status-header`: Enforces a `**Status:** <value>` header on docs matching `[status-header] files`. A status with a leading keyword in `live` is audited normally. A status keyword in `terminal` marks the document as historical and suppresses all rules listed in `[status-header] suppresses`.
   - Only citation rules (`link-target`, `link-case`, `bare-path`, `import-target`, `anchor-resolves`, `descriptive-anchor`) are suppressible; listing structural rules triggers configuration errors.
-  - Setting `inherits-from = "plan.md"` allows peer files in the same directory lacking headers to inherit the status of the named file.
+  - Setting `inherits-from = "plan.md"` allows peer files in the same directory lacking headers to inherit the status of the named file. The named file is read from disk, so `aigarden check <paths>` (such as a pre-commit hook's staged files) gives a peer the same verdict as a whole-repo run.
   - The rule is inert until `files` is specified.
 
 ### Introspection Commands

@@ -93,10 +93,11 @@ fn md013_config(reflow: Reflow) -> Option<MD013Config> {
 /// Run `rules` over the given markdown files, gathering single-file warnings and
 /// MD051-style workspace cross-file warnings. The workspace index is keyed by
 /// each file's absolute path — the same form MD051 resolves link targets to —
-/// so cross-file anchor lookups hit. Callers pass the files they want indexed;
-/// non-markdown files are filtered out here.
+/// so cross-file anchor lookups hit. `index_only` files join the index as link
+/// targets but are not linted. Non-markdown files are filtered out here.
 pub(crate) fn run<'a>(
     files: impl Iterator<Item = &'a SourceFile>,
+    index_only: &[SourceFile],
     rules: &[Box<dyn RumdlRule>],
 ) -> Vec<RumdlFinding<'a>> {
     let md_files: Vec<&SourceFile> = files.filter(|f| is_markdown(&f.rel_path)).collect();
@@ -104,6 +105,17 @@ pub(crate) fn run<'a>(
 
     // Phase 1: single-file lint + build the workspace index every file contributes to.
     let mut workspace = rumdl_lib::workspace_index::WorkspaceIndex::new();
+    for file in index_only.iter().filter(|f| is_markdown(&f.rel_path)) {
+        let (_, index) = rumdl_lib::lint_and_index(
+            &file.content,
+            rules,
+            false,
+            flavor,
+            Some(file.abs_path.clone()),
+            None,
+        );
+        workspace.insert_file(file.abs_path.clone(), index);
+    }
     let mut indexed = Vec::with_capacity(md_files.len());
     for file in &md_files {
         let (result, index) = rumdl_lib::lint_and_index(

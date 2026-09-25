@@ -4,14 +4,20 @@
 //! a rumdl rule set, run it through the adapter, and map warnings to aigarden
 //! diagnostics. Nothing else in the tree touches rumdl types.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use crate::config::Reflow;
 use crate::diagnostic::{Diagnostic, Span};
+use crate::references::{RefKind, extract, is_markdown};
+use crate::rules::resolve::{
+    is_checkable_local, normalize_lexical, resolve_existing, resolve_from_file,
+};
 use crate::rules::{ConfigKey, Explanation, NO_CONFIG, Rule, RuleContext};
 use crate::rumdl_adapter::{
     CogLayout, Owner, RumdlFinding, anchor_rules, char_pos_to_byte, run, style_rules,
 };
+use crate::walk::{SourceFile, read_lossy};
 
 /// Map one rumdl warning to an aigarden diagnostic, converting its character
 /// position to a byte span. `message` lets the caller reshape the raw rumdl text.
@@ -58,13 +64,60 @@ heading-slug long tail.",
     fn check(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         // Index over *all* markdown files so cross-file (`other.md#frag`) lookups
         // resolve even when the target file has the rule disabled; then suppress
-        // findings on files an override turned off.
-        run(ctx.files.iter(), &anchor_rules())
-            .iter()
-            .filter(|finding| ctx.resolver.is_enabled(self.name(), &finding.file.rel_path))
-            .map(|finding| to_diagnostic(self.name(), finding, finding.warning.message.clone()))
-            .collect()
+        // findings on files an override turned off. Targets outside the requested
+        // paths are read from disk so a partial check gives the same verdict.
+        run(
+            ctx.files.iter(),
+            &unscanned_link_targets(ctx.files),
+            &anchor_rules(),
+        )
+        .iter()
+        .filter(|finding| ctx.resolver.is_enabled(self.name(), &finding.file.rel_path))
+        .map(|finding| to_diagnostic(self.name(), finding, finding.warning.message.clone()))
+        .collect()
     }
+}
+
+/// The markdown files that `files` link to with a `#fragment` but that are not in
+/// `files` themselves, read from disk. `aigarden check <paths>` scans only some
+/// files, and MD051 treats a target missing from its index as unknown and skips it.
+fn unscanned_link_targets(files: &[SourceFile]) -> Vec<SourceFile> {
+    let mut seen: HashSet<PathBuf> = files
+        .iter()
+        .map(|f| normalize_lexical(&f.abs_path))
+        .collect();
+    let mut targets = Vec::new();
+    for file in files.iter().filter(|f| is_markdown(&f.rel_path)) {
+        for reference in extract(&file.rel_path, &file.content) {
+            let (RefKind::MarkdownLink, Some(path), Some(_)) = (
+                reference.kind,
+                reference.path.as_deref(),
+                &reference.fragment,
+            ) else {
+                continue;
+            };
+            if !is_checkable_local(path) {
+                continue;
+            }
+            let Some(target) = resolve_existing(&resolve_from_file(&file.abs_path, path)) else {
+                continue;
+            };
+            // Index-only files are never reported, so the absolute path serves as
+            // the display path.
+            let rel_path = target.to_string_lossy().into_owned();
+            if !is_markdown(&rel_path) || !target.is_file() || !seen.insert(target.clone()) {
+                continue;
+            }
+            let content = read_lossy(&target)
+                .unwrap_or_else(|e| panic!("reading link target {rel_path}: {e}"));
+            targets.push(SourceFile {
+                rel_path,
+                abs_path: target,
+                content,
+            });
+        }
+    }
+    targets
 }
 
 /// The rumdl phrasing never-wrap replaces. rumdl names the subject ("Paragraph",
@@ -133,7 +186,7 @@ inside a cog block: the generator owns those bytes.",
             .filter(|f| ctx.resolver.is_enabled(self.name(), &f.rel_path));
         let mut diagnostics = Vec::new();
         let mut layouts: HashMap<&str, Option<CogLayout>> = HashMap::new();
-        for finding in &run(group, &style_rules(reflow)) {
+        for finding in &run(group, &[], &style_rules(reflow)) {
             // A malformed block set is `cog-fresh`'s finding to report; without
             // block boundaries, every warning here is simply the author's.
             let layout = layouts
